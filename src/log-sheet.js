@@ -75,8 +75,9 @@ function getProcessedFileMap_(sheet) {
 
   values.forEach(function(row) {
     const fileId = collapseWhitespace_(row[1]);
+    const status = collapseWhitespace_(row[2]);
 
-    if (fileId) {
+    if (fileId && status !== "error") {
       processedFileMap[fileId] = true;
     }
   });

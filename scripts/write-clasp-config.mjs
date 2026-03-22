@@ -7,12 +7,13 @@ if (!scriptId) {
   throw new Error("CLASP_SCRIPT_ID is missing. Set it with `dotenvx set CLASP_SCRIPT_ID your-script-id`.");
 }
 
+const projectId = process.env.CLASP_PROJECT_ID?.trim();
 const rootDir = process.env.CLASP_ROOT_DIR?.trim() || "src";
 const claspConfigPath = resolve(process.cwd(), ".clasp.json");
 
 writeFileSync(
   claspConfigPath,
-  `${JSON.stringify({ scriptId, rootDir }, null, 2)}\n`,
+  `${JSON.stringify({ scriptId, rootDir, ...(projectId ? { projectId } : {}) }, null, 2)}\n`,
   "utf8",
 );
 

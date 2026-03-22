@@ -6,7 +6,6 @@ function extractTextFromPdf_(fileId, config) {
     tempDocument = Drive.Files.insert(
       {
         title: `ocr_${Utilities.getUuid()}`,
-        mimeType: MimeType.GOOGLE_DOCS,
       },
       pdfFile.getBlob(),
       {
