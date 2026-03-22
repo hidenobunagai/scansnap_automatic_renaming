@@ -8,6 +8,7 @@
     "clasp:configure": "dotenvx run -- node scripts/write-clasp-config.mjs",
     "clasp:push": "bun run clasp:configure && clasp push",
     "clasp:pull": "bun run clasp:configure && clasp pull",
-    "clasp:open": "bun run clasp:configure && clasp open"
+    "clasp:open": "bun run clasp:configure && clasp open",
+    "setup:remote": "dotenvx run -- node scripts/bootstrap-remote-setup.mjs"
   }
 }

@@ -1,3 +1,26 @@
+const WRITABLE_SCRIPT_PROPERTIES_ = Object.freeze([
+  "SCANSNAP_FOLDER_ID",
+  "AI_PROVIDER",
+  "GEMINI_API_KEY",
+  "OPENAI_API_KEY",
+  "OPENAI_BASE_URL",
+  "AI_MODEL",
+  "RENAME_MODE",
+  "MIN_CONFIDENCE",
+  "MAX_FILES_PER_RUN",
+  "FILE_STABLE_MINUTES",
+  "OCR_LANGUAGE",
+  "TRIGGER_MINUTES",
+  "TIMEZONE",
+  "FILENAME_PATTERN_HINT",
+  "LOG_SPREADSHEET_ID",
+  "LOG_SHEET_NAME",
+  "MAX_PROMPT_CHARS",
+  "MAX_SUBJECT_LENGTH",
+  "MAX_ISSUER_LENGTH",
+  "MAX_DOCUMENT_TYPE_LENGTH",
+]);
+
 function setupScanRenameProject() {
   const config = getConfig_();
   const logState = getLogState_(config);
@@ -70,6 +93,54 @@ function removeScanRenameTriggers() {
 
   return {
     removedTriggers: removed,
+  };
+}
+
+function applyScanRenameScriptProperties(setupRequest) {
+  const request = normalizeSetupRequest_(setupRequest);
+  const propertiesService = getScriptProperties_();
+  const changedKeys = [];
+  const clearedKeys = [];
+
+  WRITABLE_SCRIPT_PROPERTIES_.forEach(function(key) {
+    if (!Object.prototype.hasOwnProperty.call(request.properties, key)) {
+      return;
+    }
+
+    const rawValue = request.properties[key];
+
+    if (rawValue === null || rawValue === undefined || String(rawValue).trim() === "") {
+      propertiesService.deleteProperty(key);
+      clearedKeys.push(key);
+      return;
+    }
+
+    propertiesService.setProperty(key, String(rawValue).trim());
+    changedKeys.push(key);
+  });
+
+  const config = getConfig_();
+  const summary = {
+    changedKeys: changedKeys,
+    clearedKeys: clearedKeys,
+    config: getSafeConfigSummary_(config),
+  };
+
+  logInfo_("Scan rename script properties updated.", summary);
+
+  return summary;
+}
+
+function bootstrapScanRenameProjectFromSettings(setupRequest) {
+  const request = normalizeSetupRequest_(setupRequest);
+  const propertySummary = applyScanRenameScriptProperties(request);
+  const setupSummary = setupScanRenameProject();
+  const triggerSummary = request.installTrigger ? installScanRenameTrigger() : null;
+
+  return {
+    properties: propertySummary,
+    setup: setupSummary,
+    trigger: triggerSummary,
   };
 }
 
@@ -230,4 +301,39 @@ function removeScanRenameTriggers_() {
   });
 
   return removed;
+}
+
+function normalizeSetupRequest_(setupRequest) {
+  if (!setupRequest || typeof setupRequest !== "object" || Array.isArray(setupRequest)) {
+    throw new Error("Setup request must be an object.");
+  }
+
+  const properties = setupRequest.properties;
+
+  if (!properties || typeof properties !== "object" || Array.isArray(properties)) {
+    throw new Error("Setup request must include a properties object.");
+  }
+
+  return {
+    properties: properties,
+    installTrigger: setupRequest.installTrigger !== false,
+  };
+}
+
+function getSafeConfigSummary_(config) {
+  return {
+    scansnapFolderId: config.scansnapFolderId,
+    aiProvider: config.aiProvider,
+    aiModel: config.aiModel,
+    renameMode: config.renameMode,
+    minConfidence: config.minConfidence,
+    maxFilesPerRun: config.maxFilesPerRun,
+    fileStableMinutes: config.fileStableMinutes,
+    ocrLanguage: config.ocrLanguage,
+    timezone: config.timezone,
+    logSpreadsheetId: config.logSpreadsheetId,
+    logSheetName: config.logSheetName,
+    filenamePatternHint: config.filenamePatternHint,
+    triggerMinutes: config.triggerMinutes,
+  };
 }

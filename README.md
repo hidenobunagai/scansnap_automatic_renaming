@@ -18,6 +18,7 @@ Google Drive 上の ScanSnap PDF を定期的に見に行き、OCR と AI で分
 
 - `src/`: Apps Script に push する本体
 - `scripts/write-clasp-config.mjs`: `dotenvx` 管理の `CLASP_SCRIPT_ID` から `.clasp.json` を生成
+- `scripts/bootstrap-remote-setup.mjs`: `clasp` で properties 設定、初期化、trigger 作成まで進める
 
 ## Setup
 
@@ -40,6 +41,16 @@ bun run clasp:push
 6. `setupScanRenameProject()` を 1 回実行して、ログ用スプレッドシートを自動作成します。
 7. 最初は `RENAME_MODE=review` のまま `runScanRenameJob()` を実行し、提案名を確認します。
 8. 問題なければ `RENAME_MODE=rename` に変更し、`installScanRenameTrigger()` を実行します。
+
+または、必要な環境変数を `.env` に入れたうえで CLI からまとめて設定できます。
+
+```bash
+dotenvx set SCANSNAP_FOLDER_ID your-drive-folder-id
+dotenvx set GEMINI_API_KEY your-gemini-api-key
+bun run setup:remote
+```
+
+このコマンドは `clasp push`、API executable deployment、script properties 設定、ログ初期化、trigger 作成までまとめて実行します。
 
 ## Required script properties
 
@@ -67,6 +78,7 @@ bun run env:init
 bun run check
 bun run clasp:push
 bun run clasp:open
+bun run setup:remote
 ```
 
 ## Apps Script functions
