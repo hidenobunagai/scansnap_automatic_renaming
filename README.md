@@ -37,10 +37,13 @@ dotenvx set CLASP_SCRIPT_ID your-script-id
 bun run clasp:push
 ```
 
-5. Apps Script 側の `Project Settings > Script properties` に必要な値を入れます。
-6. `setupScanRenameProject()` を 1 回実行して、ログ用スプレッドシートを自動作成します。
-7. 最初は `RENAME_MODE=review` のまま `runScanRenameJob()` を実行し、提案名を確認します。
-8. 問題なければ `RENAME_MODE=rename` に変更し、`installScanRenameTrigger()` を実行します。
+5. `clasp run` まで使う場合は、Apps Script の `Project Settings` でこの script を GCP project に紐付けます。
+6. その GCP project 上で `Desktop App` の OAuth client を作り、`client_secret.json` をローカルへ保存します。
+7. `clasp login --creds client_secret.json --use-project-scopes` を実行します。
+8. Apps Script 側の `Project Settings > Script properties` に必要な値を入れます。
+9. `setupScanRenameProject()` を 1 回実行して、ログ用スプレッドシートを自動作成します。
+10. 最初は `RENAME_MODE=review` のまま `runScanRenameJob()` を実行し、提案名を確認します。
+11. 問題なければ `RENAME_MODE=rename` に変更し、`installScanRenameTrigger()` を実行します。
 
 または、必要な環境変数を `.env` に入れたうえで CLI からまとめて設定できます。
 
@@ -51,6 +54,8 @@ bun run setup:remote
 ```
 
 このコマンドは `clasp push`、API executable deployment、script properties 設定、ログ初期化、trigger 作成までまとめて実行します。
+
+前提として、`clasp run` を使うための `GCP project` 紐付けと `client_secret.json` による再ログインが必要です。
 
 ## Required script properties
 

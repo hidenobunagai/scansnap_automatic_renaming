@@ -3,5 +3,6 @@
 .env.*.local
 .env.keys
 .clasp.json
+client_secret.json
 .DS_Store
 node_modules
