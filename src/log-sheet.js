@@ -28,7 +28,7 @@ function getLogState_(config) {
   return {
     spreadsheetId: spreadsheet.getId(),
     sheet: sheet,
-    processedFileMap: getProcessedFileMap_(sheet),
+    processedFileMap: getProcessedFileMap_(sheet, config.renameMode),
   };
 }
 
@@ -63,7 +63,7 @@ function ensureLogHeaders_(sheet) {
   sheet.autoResizeColumns(1, LOG_HEADERS_.length);
 }
 
-function getProcessedFileMap_(sheet) {
+function getProcessedFileMap_(sheet, renameMode) {
   const lastRow = sheet.getLastRow();
 
   if (lastRow < 2) {
@@ -76,13 +76,30 @@ function getProcessedFileMap_(sheet) {
   values.forEach(function(row) {
     const fileId = collapseWhitespace_(row[1]);
     const status = collapseWhitespace_(row[2]);
+    const errorMessage = collapseWhitespace_(row[12]);
 
-    if (fileId && status !== "error") {
+    if (fileId && shouldTreatLogRowAsProcessed_(status, errorMessage, renameMode)) {
       processedFileMap[fileId] = true;
     }
   });
 
   return processedFileMap;
+}
+
+function shouldTreatLogRowAsProcessed_(status, errorMessage, renameMode) {
+  if (!status || status === "error") {
+    return false;
+  }
+
+  if (
+    renameMode === "rename" &&
+    status === "review_needed" &&
+    errorMessage === "Review mode is enabled."
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 function appendLogRow_(sheet, entry) {

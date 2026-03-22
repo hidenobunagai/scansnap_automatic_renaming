@@ -98,5 +98,6 @@ bun run setup:remote
 ## Notes
 
 - OCR テキストがほぼ取れない場合は `review_needed` で止めます。
+- `review` で確認したファイルは、`rename` に切り替えた最初の実行で 1 回だけ再処理されます。
 - 再処理したいファイルは、ログシートから該当行を消して再実行してください。
 - 大きい PDF や画像中心の PDF が増えたら、OCR / AI 呼び出しだけ Cloud Run へ切り出すのが次の一手です。
