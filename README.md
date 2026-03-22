@@ -66,7 +66,7 @@ bun run setup:remote
 | `AI_PROVIDER` | no | `gemini` | `gemini` または `openai`。未指定時は `gemini` |
 | `GEMINI_API_KEY` | provider=gemini | `AIza...` | Gemini を使う場合 |
 | `OPENAI_API_KEY` | provider=openai | `sk-...` | OpenAI を使う場合 |
-| `AI_MODEL` | no | `gemini-2.5-flash-lite` | 未指定時は provider ごとの既定値 |
+| `AI_MODEL` | no | `gemini-3.1-flash-lite-preview` | 未指定時は provider ごとの既定値 |
 | `RENAME_MODE` | no | `review` | `review` または `rename` |
 | `MIN_CONFIDENCE` | no | `0.75` | `rename` 時に自動確定する最低信頼度 |
 | `MAX_FILES_PER_RUN` | no | `5` | 1 回の実行で処理する最大件数 |

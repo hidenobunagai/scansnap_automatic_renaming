@@ -7,7 +7,7 @@ const DEFAULTS_ = Object.freeze({
   ocrLanguage: "ja",
   timezone: "Asia/Tokyo",
   logSheetName: "scan_rename_log",
-  defaultGeminiModel: "gemini-2.5-flash-lite",
+  defaultGeminiModel: "gemini-3.1-flash-lite-preview",
   defaultOpenAiModel: "gpt-5-mini",
   filenamePatternHint: "YYYY-MM-DD_発行元_書類種別_要点",
   maxPromptChars: 12000,
