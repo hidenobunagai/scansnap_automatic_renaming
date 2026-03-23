@@ -12,14 +12,7 @@ function createProcessContext(overrides = {}) {
         return "これは十分なOCRテキストです。テスト用の文字列を足して二十文字以上にします。";
       },
       requestRenameSuggestion_() {
-        return {
-          documentDate: "2026-03-01",
-          issuer: "市役所",
-          documentType: "税通知",
-          subject: "令和8年度",
-          summary: "税通知のテスト",
-          confidence: 0.96,
-        };
+        return createSuggestion();
       },
       buildSuggestedFileName_() {
         return "2026-03-01_市役所_税通知_令和8年度.pdf";
@@ -35,6 +28,9 @@ function createProcessContext(overrides = {}) {
           id: `folder:${rootFolderId}:${relativePath}`,
           path: relativePath,
         };
+      },
+      findDriveFileByNameInFolder_() {
+        return null;
       },
       ensureUniqueFileNameInFolder_(folderId, fileName) {
         return fileName;
@@ -66,6 +62,18 @@ function createConfig(renameMode) {
     renameMode,
     minConfidence: 0.75,
     archiveRootFolderId: "archive-root",
+  };
+}
+
+function createSuggestion(overrides = {}) {
+  return {
+    documentDate: "2026-03-01",
+    issuer: "市役所",
+    documentType: "税通知",
+    subject: "令和8年度",
+    summary: "税通知のテスト",
+    confidence: 0.96,
+    ...overrides,
   };
 }
 
@@ -146,6 +154,32 @@ describe("processSinglePdfFile_", () => {
     expect(entries).toHaveLength(1);
   });
 
+  test("keeps low-confidence same-name files in review_needed instead of looping skipped", () => {
+    const entries = [];
+    const { context, copied, renamed } = createProcessContext({
+      requestRenameSuggestion_() {
+        return createSuggestion({ confidence: 0.2 });
+      },
+      buildSuggestedFileName_() {
+        return "already-good.pdf";
+      },
+    });
+
+    const result = context.processSinglePdfFile_(
+      createFileMeta("already-good.pdf"),
+      createConfig("rename"),
+      createLogSheet(entries),
+      null,
+    );
+
+    expect(result.status).toBe("review_needed");
+    expect(result.errorMessage).toBe("Confidence 0.2 is below MIN_CONFIDENCE 0.75.");
+    expect(result.archiveFileId).toBe("");
+    expect(copied).toHaveLength(0);
+    expect(renamed).toHaveLength(0);
+    expect(entries).toHaveLength(1);
+  });
+
   test("copies to archive in rename mode even when the filename already matches", () => {
     const entries = [];
     const { context, copied, renamed } = createProcessContext({
@@ -158,6 +192,7 @@ describe("processSinglePdfFile_", () => {
       createFileMeta("already-good.pdf"),
       createConfig("rename"),
       createLogSheet(entries),
+      null,
     );
 
     expect(result.status).toBe("skipped");
@@ -186,6 +221,7 @@ describe("processSinglePdfFile_", () => {
       createFileMeta("scan.pdf"),
       createConfig("rename"),
       createLogSheet(entries),
+      null,
     );
 
     expect(result.status).toBe("copy_failed");
@@ -197,6 +233,143 @@ describe("processSinglePdfFile_", () => {
         newTitle: "2026-03-01_市役所_税通知_令和8年度.pdf",
       },
     ]);
+    expect(entries).toHaveLength(1);
+  });
+
+  test("retries copy_failed using saved archive state without rerunning OCR or AI", () => {
+    const entries = [];
+    const { context, copied, renamed } = createProcessContext({
+      extractTextFromPdf_() {
+        throw new Error("OCR should not run for archive retry.");
+      },
+      requestRenameSuggestion_() {
+        throw new Error("AI should not run for archive retry.");
+      },
+    });
+
+    const result = context.processSinglePdfFile_(
+      createFileMeta("already-good.pdf"),
+      createConfig("rename"),
+      createLogSheet(entries),
+      {
+        processed: false,
+        lastEntry: {
+          status: "copy_failed",
+          suggestedName: "already-good.pdf",
+          finalName: "",
+          confidence: 0.96,
+          documentDate: "2026-03-01",
+          issuer: "市役所",
+          documentType: "税通知",
+          subject: "令和8年度",
+          summary: "税通知のテスト",
+          archiveRelativePath: "税通知/市役所",
+          archiveFinalName: "already-good.pdf",
+          archiveFileId: "",
+        },
+      },
+    );
+
+    expect(result.status).toBe("skipped");
+    expect(result.archiveFileId).toBe("copied:file-1");
+    expect(copied).toEqual([
+      {
+        fileId: "file-1",
+        folderId: "folder:archive-root:税通知/市役所",
+        fileName: "already-good.pdf",
+      },
+    ]);
+    expect(renamed).toHaveLength(0);
+    expect(entries).toHaveLength(1);
+  });
+
+  test("reuses an existing archive file during copy_failed retry before creating a duplicate", () => {
+    const entries = [];
+    const { context, copied } = createProcessContext({
+      findDriveFileByNameInFolder_() {
+        return {
+          id: "existing-archive-file",
+          title: "already-good.pdf",
+        };
+      },
+      copyDriveFileToFolder_() {
+        throw new Error("copyDriveFileToFolder_ should not run when retry finds an existing file.");
+      },
+    });
+
+    const result = context.processSinglePdfFile_(
+      createFileMeta("already-good.pdf"),
+      createConfig("rename"),
+      createLogSheet(entries),
+      {
+        processed: false,
+        lastEntry: {
+          status: "copy_failed",
+          suggestedName: "already-good.pdf",
+          finalName: "",
+          confidence: 0.96,
+          documentDate: "2026-03-01",
+          issuer: "市役所",
+          documentType: "税通知",
+          subject: "令和8年度",
+          summary: "税通知のテスト",
+          archiveRelativePath: "税通知/市役所",
+          archiveFinalName: "already-good.pdf",
+          archiveFileId: "",
+        },
+      },
+    );
+
+    expect(result.status).toBe("skipped");
+    expect(result.archiveFileId).toBe("existing-archive-file");
+    expect(result.archiveFinalName).toBe("already-good.pdf");
+    expect(copied).toHaveLength(0);
+    expect(entries).toHaveLength(1);
+  });
+
+  test("does not retry archive copy in review mode even if the last entry was copy_failed", () => {
+    const entries = [];
+    const { context, copied, renamed } = createProcessContext({
+      buildSuggestedFileName_() {
+        return "already-good.pdf";
+      },
+      requestRenameSuggestion_() {
+        return createSuggestion({ confidence: 0.2 });
+      },
+    });
+
+    const result = context.processSinglePdfFile_(
+      createFileMeta("already-good.pdf"),
+      {
+        renameMode: "review",
+        minConfidence: 0.75,
+        archiveRootFolderId: "",
+      },
+      createLogSheet(entries),
+      {
+        processed: false,
+        lastEntry: {
+          status: "copy_failed",
+          suggestedName: "already-good.pdf",
+          finalName: "",
+          confidence: 0.96,
+          documentDate: "2026-03-01",
+          issuer: "市役所",
+          documentType: "税通知",
+          subject: "令和8年度",
+          summary: "税通知のテスト",
+          archiveRelativePath: "税通知/市役所",
+          archiveFinalName: "already-good.pdf",
+          archiveFileId: "",
+        },
+      },
+    );
+
+    expect(result.status).toBe("skipped");
+    expect(result.archiveFileId).toBe("");
+    expect(result.errorMessage).toBe("Suggested filename matched the current filename.");
+    expect(copied).toHaveLength(0);
+    expect(renamed).toHaveLength(0);
     expect(entries).toHaveLength(1);
   });
 });
@@ -219,5 +392,68 @@ describe("shouldTreatLogRowAsProcessed_", () => {
 
     expect(context.shouldTreatLogRowAsProcessed_("renamed", "", "rename", "")).toBe(false);
     expect(context.shouldTreatLogRowAsProcessed_("skipped", "", "rename", "")).toBe(false);
+  });
+});
+
+describe("getFileStateMap_", () => {
+  test("keeps legacy review rows retryable after archive columns are added", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js", "src/log-sheet.js"],
+    });
+
+    const fileStateMap = context.getFileStateMap_(
+      {
+        getLastRow() {
+          return 2;
+        },
+        getRange() {
+          return {
+            getValues() {
+              return [[
+                "2026-03-01T00:00:00.000Z",
+                "file-1",
+                "review_needed",
+                "scan.pdf",
+                "2026-03-01_市役所_税通知_令和8年度.pdf",
+                "",
+                0.96,
+                "2026-03-01",
+                "市役所",
+                "税通知",
+                "令和8年度",
+                "税通知のテスト",
+                "Review mode is enabled.",
+              ]];
+            },
+          };
+        },
+      },
+      "rename",
+    );
+
+    expect(fileStateMap["file-1"].processed).toBe(false);
+    expect(fileStateMap["file-1"].lastEntry.errorMessage).toBe("Review mode is enabled.");
+  });
+});
+
+describe("validateRunConfig_", () => {
+  test("allows review mode without archive root folder", () => {
+    const context = createAppsScriptContext({
+      files: ["src/main.js"],
+    });
+
+    expect(function() {
+      context.validateRunConfig_({ renameMode: "review", archiveRootFolderId: "" });
+    }).not.toThrow();
+  });
+
+  test("requires archive root folder in rename mode", () => {
+    const context = createAppsScriptContext({
+      files: ["src/main.js"],
+    });
+
+    expect(function() {
+      context.validateRunConfig_({ renameMode: "rename", archiveRootFolderId: "" });
+    }).toThrow("ARCHIVE_ROOT_FOLDER_ID is required when RENAME_MODE=rename.");
   });
 });

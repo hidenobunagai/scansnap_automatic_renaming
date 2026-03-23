@@ -11,17 +11,29 @@ const LOG_HEADERS_ = Object.freeze([
   "documentType",
   "subject",
   "summary",
+  "errorMessage",
   "archiveRelativePath",
   "archiveFinalName",
   "archiveFileId",
-  "errorMessage",
 ]);
 
 const LOG_HEADER_INDEX_ = Object.freeze({
+  processedAt: LOG_HEADERS_.indexOf("processedAt"),
   fileId: LOG_HEADERS_.indexOf("fileId"),
   status: LOG_HEADERS_.indexOf("status"),
-  archiveFileId: LOG_HEADERS_.indexOf("archiveFileId"),
+  originalName: LOG_HEADERS_.indexOf("originalName"),
+  suggestedName: LOG_HEADERS_.indexOf("suggestedName"),
+  finalName: LOG_HEADERS_.indexOf("finalName"),
+  confidence: LOG_HEADERS_.indexOf("confidence"),
+  documentDate: LOG_HEADERS_.indexOf("documentDate"),
+  issuer: LOG_HEADERS_.indexOf("issuer"),
+  documentType: LOG_HEADERS_.indexOf("documentType"),
+  subject: LOG_HEADERS_.indexOf("subject"),
+  summary: LOG_HEADERS_.indexOf("summary"),
   errorMessage: LOG_HEADERS_.indexOf("errorMessage"),
+  archiveRelativePath: LOG_HEADERS_.indexOf("archiveRelativePath"),
+  archiveFinalName: LOG_HEADERS_.indexOf("archiveFinalName"),
+  archiveFileId: LOG_HEADERS_.indexOf("archiveFileId"),
 });
 
 function getLogState_(config) {
@@ -38,7 +50,7 @@ function getLogState_(config) {
   return {
     spreadsheetId: spreadsheet.getId(),
     sheet: sheet,
-    processedFileMap: getProcessedFileMap_(sheet, config.renameMode),
+    fileStateMap: getFileStateMap_(sheet, config.renameMode),
   };
 }
 
@@ -73,7 +85,7 @@ function ensureLogHeaders_(sheet) {
   sheet.autoResizeColumns(1, LOG_HEADERS_.length);
 }
 
-function getProcessedFileMap_(sheet, renameMode) {
+function getFileStateMap_(sheet, renameMode) {
   const lastRow = sheet.getLastRow();
 
   if (lastRow < 2) {
@@ -81,20 +93,74 @@ function getProcessedFileMap_(sheet, renameMode) {
   }
 
   const values = sheet.getRange(2, 1, lastRow - 1, LOG_HEADERS_.length).getValues();
-  const processedFileMap = {};
+  const fileStateMap = {};
 
   values.forEach(function(row) {
-    const fileId = collapseWhitespace_(row[LOG_HEADER_INDEX_.fileId]);
-    const status = collapseWhitespace_(row[LOG_HEADER_INDEX_.status]);
-    const archiveFileId = collapseWhitespace_(row[LOG_HEADER_INDEX_.archiveFileId]);
-    const errorMessage = collapseWhitespace_(row[LOG_HEADER_INDEX_.errorMessage]);
+    const entry = parseLogRow_(row);
 
-    if (fileId && shouldTreatLogRowAsProcessed_(status, errorMessage, renameMode, archiveFileId)) {
-      processedFileMap[fileId] = true;
+    if (!entry.fileId) {
+      return;
     }
+
+    fileStateMap[entry.fileId] = {
+      processed: shouldTreatLogRowAsProcessed_(
+        entry.status,
+        entry.errorMessage,
+        renameMode,
+        entry.archiveFileId,
+      ),
+      lastEntry: entry,
+    };
   });
 
-  return processedFileMap;
+  return fileStateMap;
+}
+
+function parseLogRow_(row) {
+  return {
+    processedAt: getLogRowValue_(row, "processedAt"),
+    fileId: getLogRowValue_(row, "fileId"),
+    status: getLogRowValue_(row, "status"),
+    originalName: getLogRowValue_(row, "originalName"),
+    suggestedName: getLogRowValue_(row, "suggestedName"),
+    finalName: getLogRowValue_(row, "finalName"),
+    confidence: getLogRowNumber_(row, "confidence"),
+    documentDate: getLogRowValue_(row, "documentDate"),
+    issuer: getLogRowValue_(row, "issuer"),
+    documentType: getLogRowValue_(row, "documentType"),
+    subject: getLogRowValue_(row, "subject"),
+    summary: getLogRowValue_(row, "summary"),
+    errorMessage: getLogRowValue_(row, "errorMessage"),
+    archiveRelativePath: getLogRowValue_(row, "archiveRelativePath"),
+    archiveFinalName: getLogRowValue_(row, "archiveFinalName"),
+    archiveFileId: getLogRowValue_(row, "archiveFileId"),
+  };
+}
+
+function getLogRowValue_(row, key) {
+  const index = LOG_HEADER_INDEX_[key];
+
+  if (typeof index !== "number" || index < 0 || index >= row.length) {
+    return "";
+  }
+
+  return collapseWhitespace_(row[index]);
+}
+
+function getLogRowNumber_(row, key) {
+  const index = LOG_HEADER_INDEX_[key];
+
+  if (typeof index !== "number" || index < 0 || index >= row.length) {
+    return 0;
+  }
+
+  const numeric = Number(row[index]);
+
+  if (Number.isNaN(numeric)) {
+    return 0;
+  }
+
+  return numeric;
 }
 
 function shouldTreatLogRowAsProcessed_(status, errorMessage, renameMode, archiveFileId) {
@@ -135,9 +201,9 @@ function appendLogRow_(sheet, entry) {
     entry.documentType || "",
     entry.subject || "",
     entry.summary || "",
+    entry.errorMessage || "",
     entry.archiveRelativePath || "",
     entry.archiveFinalName || "",
     entry.archiveFileId || "",
-    entry.errorMessage || "",
   ]);
 }

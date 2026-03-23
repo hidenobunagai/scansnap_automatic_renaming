@@ -1,4 +1,4 @@
-function listPendingPdfFiles_(config, processedFileMap) {
+function listPendingPdfFiles_(config, fileStateMap) {
   const candidates = [];
   const query = [
     `'${escapeDriveQueryValue_(config.scansnapFolderId)}' in parents`,
@@ -19,7 +19,9 @@ function listPendingPdfFiles_(config, processedFileMap) {
     });
 
     (response.items || []).forEach(function(item) {
-      if (candidates.length >= config.maxFilesPerRun || processedFileMap[item.id]) {
+      const fileState = fileStateMap[item.id];
+
+      if (candidates.length >= config.maxFilesPerRun || (fileState && fileState.processed)) {
         return;
       }
 
@@ -120,6 +122,10 @@ function copyDriveFileToFolder_(fileId, folderId, newTitle) {
 }
 
 function driveFileNameExists_(folderId, fileName, currentFileId) {
+  return Boolean(findDriveFileByNameInFolder_(folderId, fileName, currentFileId));
+}
+
+function findDriveFileByNameInFolder_(folderId, fileName, currentFileId) {
   const query = [
     `'${escapeDriveQueryValue_(folderId)}' in parents`,
     `title = '${escapeDriveQueryValue_(fileName)}'`,
@@ -133,9 +139,11 @@ function driveFileNameExists_(folderId, fileName, currentFileId) {
     supportsAllDrives: true,
   });
 
-  return (response.items || []).some(function(item) {
-    return item.id !== currentFileId;
-  });
+  return (
+    (response.items || []).find(function(item) {
+      return !currentFileId || item.id !== currentFileId;
+    }) || null
+  );
 }
 
 function findOrCreateChildFolder_(parentFolderId, folderName) {

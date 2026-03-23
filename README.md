@@ -65,7 +65,7 @@ bun run setup:remote
 | Key | Required | Example | Notes |
 | --- | --- | --- | --- |
 | `SCANSNAP_FOLDER_ID` | yes | `1AbCdEf...` | 監視対象の Drive folder ID |
-| `ARCHIVE_ROOT_FOLDER_ID` | yes | `1FamilyFolder...` | 共有アーカイブ先の Drive folder ID |
+| `ARCHIVE_ROOT_FOLDER_ID` | rename時に必要 | `1FamilyFolder...` | 共有アーカイブ先の Drive folder ID |
 | `AI_PROVIDER` | no | `gemini` | `gemini` または `openai`。未指定時は `gemini` |
 | `GEMINI_API_KEY` | provider=gemini | `AIza...` | Gemini を使う場合 |
 | `OPENAI_API_KEY` | provider=openai | `sk-...` | OpenAI を使う場合 |
@@ -101,6 +101,7 @@ bun run setup:remote
 ## Notes
 
 - OCR テキストがほぼ取れない場合は `review_needed` で止めます。
+- `review` では `ARCHIVE_ROOT_FOLDER_ID` 未設定でも候補パスの確認までは実行できます。
 - `review` で確認したファイルは、`rename` に切り替えた最初の実行で 1 回だけ再処理されます。
 - `rename` ではファイル名がすでに確定していても、未コピーなら共有アーカイブへコピーします。
 - 共有先コピーに失敗したファイルは `copy_failed` で記録され、次回実行で再試行されます。

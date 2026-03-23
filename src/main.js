@@ -42,8 +42,9 @@ function setupScanRenameProject() {
 
 function runScanRenameJob() {
   const config = getConfig_();
+  validateRunConfig_(config);
   const logState = getLogState_(config);
-  const candidates = listPendingPdfFiles_(config, logState.processedFileMap);
+  const candidates = listPendingPdfFiles_(config, logState.fileStateMap);
   const counts = {
     renamed: 0,
     review_needed: 0,
@@ -54,7 +55,12 @@ function runScanRenameJob() {
   const results = [];
 
   candidates.forEach(function(fileMeta) {
-    const result = processSinglePdfFile_(fileMeta, config, logState.sheet);
+    const result = processSinglePdfFile_(
+      fileMeta,
+      config,
+      logState.sheet,
+      logState.fileStateMap[fileMeta.id] || null,
+    );
 
     results.push(result);
     counts[result.status] = (counts[result.status] || 0) + 1;
@@ -75,6 +81,7 @@ function runScanRenameJob() {
 
 function installScanRenameTrigger() {
   const config = getConfig_();
+  validateRunConfig_(config);
   const removed = removeScanRenameTriggers_();
 
   ScriptApp.newTrigger("runScanRenameJob").timeBased().everyMinutes(config.triggerMinutes).create();
@@ -171,8 +178,21 @@ function getScriptPropertiesTemplate() {
   ].join("\n");
 }
 
-function processSinglePdfFile_(fileMeta, config, logSheet) {
+function validateRunConfig_(config) {
+  if (config.renameMode === "rename" && !config.archiveRootFolderId) {
+    throw new Error("ARCHIVE_ROOT_FOLDER_ID is required when RENAME_MODE=rename.");
+  }
+}
+
+function processSinglePdfFile_(fileMeta, config, logSheet, fileState) {
   try {
+    const archiveRetryState =
+      config.renameMode === "rename" ? buildArchiveRetryState_(fileMeta, fileState) : null;
+
+    if (archiveRetryState) {
+      return retryArchiveCopyForFile_(fileMeta, archiveRetryState, config, logSheet);
+    }
+
     const extractedText = extractTextFromPdf_(fileMeta.id, config);
 
     if (extractedText.length < 20) {
@@ -199,18 +219,22 @@ function processSinglePdfFile_(fileMeta, config, logSheet) {
 
     const suggestion = requestRenameSuggestion_(extractedText, fileMeta, config);
     const archiveRelativePath = buildArchiveRelativePath_(suggestion, config);
+    const isConfident = suggestion.confidence >= config.minConfidence;
     const suggestedName = ensureUniqueFileName_(
       config.scansnapFolderId,
       buildSuggestedFileName_(suggestion, fileMeta, config),
       fileMeta.id,
     );
     const shouldRename =
-      config.renameMode === "rename" &&
-      suggestedName !== fileMeta.name &&
-      suggestion.confidence >= config.minConfidence;
-    const shouldCopyToArchive =
-      config.renameMode === "rename" && suggestion.confidence >= config.minConfidence;
+      config.renameMode === "rename" && suggestedName !== fileMeta.name && isConfident;
+    const shouldCopyToArchive = config.renameMode === "rename" && isConfident;
     const sourceFileName = shouldRename ? suggestedName : fileMeta.name;
+    const status = determineProcessingStatus_(
+      config.renameMode,
+      suggestedName,
+      fileMeta.name,
+      isConfident,
+    );
     let archiveFinalName = "";
     let archiveFileId = "";
 
@@ -220,19 +244,14 @@ function processSinglePdfFile_(fileMeta, config, logSheet) {
 
     if (shouldCopyToArchive) {
       try {
-        const archiveFolder = ensureArchiveFolderByPath_(
-          config.archiveRootFolderId,
+        const archiveCopyResult = copyFileToArchive_(
+          fileMeta,
+          requireArchiveRootFolderId_(config),
           archiveRelativePath,
-        );
-
-        archiveFinalName = ensureUniqueFileNameInFolder_(
-          archiveFolder.id,
           sourceFileName,
-          fileMeta.id,
         );
-        archiveFileId = String(
-          (copyDriveFileToFolder_(fileMeta.id, archiveFolder.id, archiveFinalName) || {}).id || "",
-        );
+        archiveFinalName = archiveCopyResult.archiveFinalName;
+        archiveFileId = archiveCopyResult.archiveFileId;
       } catch (error) {
         const message = getErrorMessage_(error);
         const result = logProcessingResult_(
@@ -271,11 +290,7 @@ function processSinglePdfFile_(fileMeta, config, logSheet) {
       logSheet,
       fileMeta,
       {
-        status: shouldRename
-          ? "renamed"
-          : suggestedName === fileMeta.name
-            ? "skipped"
-            : "review_needed",
+        status: status,
         suggestedName: suggestedName,
         finalName: shouldRename ? suggestedName : "",
         confidence: suggestion.confidence,
@@ -287,14 +302,14 @@ function processSinglePdfFile_(fileMeta, config, logSheet) {
         archiveRelativePath: archiveRelativePath,
         archiveFinalName: archiveFinalName,
         archiveFileId: archiveFileId,
-        errorMessage:
-          shouldRename || shouldCopyToArchive
-            ? ""
-            : config.renameMode === "review"
-              ? "Review mode is enabled."
-              : suggestedName === fileMeta.name
-                ? "Suggested filename matched the current filename."
-                : `Confidence ${suggestion.confidence} is below MIN_CONFIDENCE ${config.minConfidence}.`,
+        errorMessage: buildProcessingErrorMessage_(
+          status,
+          config,
+          suggestedName,
+          fileMeta.name,
+          suggestion.confidence,
+          shouldCopyToArchive,
+        ),
       },
     );
   } catch (error) {
@@ -327,6 +342,188 @@ function processSinglePdfFile_(fileMeta, config, logSheet) {
 
     return result;
   }
+}
+
+function buildArchiveRetryState_(fileMeta, fileState) {
+  const lastEntry = fileState && fileState.lastEntry ? fileState.lastEntry : null;
+
+  if (!lastEntry || lastEntry.status !== "copy_failed") {
+    return null;
+  }
+
+  const archiveRelativePath = collapseWhitespace_(lastEntry.archiveRelativePath);
+  const archiveFinalName = collapseWhitespace_(
+    lastEntry.archiveFinalName || lastEntry.finalName || lastEntry.suggestedName || fileMeta.name,
+  );
+
+  if (!archiveRelativePath || !archiveFinalName) {
+    return null;
+  }
+
+  return {
+    status: collapseWhitespace_(lastEntry.finalName) ? "renamed" : "skipped",
+    suggestedName: collapseWhitespace_(lastEntry.suggestedName) || archiveFinalName,
+    finalName: collapseWhitespace_(lastEntry.finalName),
+    confidence: typeof lastEntry.confidence === "number" ? lastEntry.confidence : 0,
+    documentDate: collapseWhitespace_(lastEntry.documentDate),
+    issuer: collapseWhitespace_(lastEntry.issuer),
+    documentType: collapseWhitespace_(lastEntry.documentType),
+    subject: collapseWhitespace_(lastEntry.subject),
+    summary: collapseWhitespace_(lastEntry.summary),
+    archiveRelativePath: archiveRelativePath,
+    archiveFinalName: archiveFinalName,
+  };
+}
+
+function retryArchiveCopyForFile_(fileMeta, retryState, config, logSheet) {
+  try {
+    const archiveCopyResult = copyFileToArchive_(
+      fileMeta,
+      requireArchiveRootFolderId_(config),
+      retryState.archiveRelativePath,
+      retryState.archiveFinalName,
+      { reuseExisting: true },
+    );
+
+    return logProcessingResult_(
+      logSheet,
+      fileMeta,
+      {
+        status: retryState.status,
+        suggestedName: retryState.suggestedName,
+        finalName: retryState.finalName,
+        confidence: retryState.confidence,
+        documentDate: retryState.documentDate,
+        issuer: retryState.issuer,
+        documentType: retryState.documentType,
+        subject: retryState.subject,
+        summary: retryState.summary,
+        archiveRelativePath: retryState.archiveRelativePath,
+        archiveFinalName: archiveCopyResult.archiveFinalName,
+        archiveFileId: archiveCopyResult.archiveFileId,
+        errorMessage: "",
+      },
+    );
+  } catch (error) {
+    const message = getErrorMessage_(error);
+    const result = logProcessingResult_(
+      logSheet,
+      fileMeta,
+      {
+        status: "copy_failed",
+        suggestedName: retryState.suggestedName,
+        finalName: retryState.finalName,
+        confidence: retryState.confidence,
+        documentDate: retryState.documentDate,
+        issuer: retryState.issuer,
+        documentType: retryState.documentType,
+        subject: retryState.subject,
+        summary: retryState.summary,
+        archiveRelativePath: retryState.archiveRelativePath,
+        archiveFinalName: retryState.archiveFinalName,
+        archiveFileId: "",
+        errorMessage: message,
+      },
+    );
+
+    logError_("Scan archive copy failed.", {
+      fileId: fileMeta.id,
+      originalName: fileMeta.name,
+      finalName: retryState.finalName || fileMeta.name,
+      archiveRelativePath: retryState.archiveRelativePath,
+      error: message,
+    });
+
+    return result;
+  }
+}
+
+function determineProcessingStatus_(renameMode, suggestedName, currentName, isConfident) {
+  if (renameMode === "rename" && !isConfident) {
+    return "review_needed";
+  }
+
+  if (suggestedName === currentName) {
+    return "skipped";
+  }
+
+  if (renameMode === "rename") {
+    return "renamed";
+  }
+
+  return "review_needed";
+}
+
+function buildProcessingErrorMessage_(
+  status,
+  config,
+  suggestedName,
+  currentName,
+  confidence,
+  shouldCopyToArchive,
+) {
+  if (status === "renamed" || shouldCopyToArchive) {
+    return "";
+  }
+
+  if (status === "review_needed") {
+    if (config.renameMode === "review") {
+      return "Review mode is enabled.";
+    }
+
+    return `Confidence ${confidence} is below MIN_CONFIDENCE ${config.minConfidence}.`;
+  }
+
+  if (status === "skipped" && suggestedName === currentName) {
+    return "Suggested filename matched the current filename.";
+  }
+
+  return "";
+}
+
+function requireArchiveRootFolderId_(config) {
+  const folderId = collapseWhitespace_(config.archiveRootFolderId);
+
+  if (!folderId) {
+    throw new Error("Missing script property: ARCHIVE_ROOT_FOLDER_ID");
+  }
+
+  return folderId;
+}
+
+function copyFileToArchive_(
+  fileMeta,
+  archiveRootFolderId,
+  archiveRelativePath,
+  sourceFileName,
+  options,
+) {
+  const archiveFolder = ensureArchiveFolderByPath_(archiveRootFolderId, archiveRelativePath);
+  const copyOptions = options || {};
+
+  if (copyOptions.reuseExisting) {
+    const existingFile = findDriveFileByNameInFolder_(archiveFolder.id, sourceFileName);
+
+    if (existingFile) {
+      return {
+        archiveFinalName: collapseWhitespace_(existingFile.title) || sourceFileName,
+        archiveFileId: String(existingFile.id || ""),
+      };
+    }
+  }
+
+  const archiveFinalName = ensureUniqueFileNameInFolder_(
+    archiveFolder.id,
+    sourceFileName,
+  );
+  const archiveFileId = String(
+    (copyDriveFileToFolder_(fileMeta.id, archiveFolder.id, archiveFinalName) || {}).id || "",
+  );
+
+  return {
+    archiveFinalName: archiveFinalName,
+    archiveFileId: archiveFileId,
+  };
 }
 
 function logProcessingResult_(logSheet, fileMeta, result) {

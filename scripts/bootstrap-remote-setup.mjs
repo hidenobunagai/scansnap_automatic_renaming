@@ -42,12 +42,31 @@ function getFolderId(idKey, urlKey) {
   return rawValue;
 }
 
+function getOptionalFolderId(idKey, urlKey) {
+  const rawValue = getOptionalEnv(idKey) || getOptionalEnv(urlKey);
+
+  if (!rawValue) {
+    return "";
+  }
+
+  const urlMatch = rawValue.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+
+  if (urlMatch) {
+    return urlMatch[1];
+  }
+
+  return rawValue;
+}
+
 function buildSetupRequest() {
   const aiProvider = (getOptionalEnv("AI_PROVIDER") || "gemini").toLowerCase();
   const request = {
     properties: {
       SCANSNAP_FOLDER_ID: getFolderId("SCANSNAP_FOLDER_ID", "SCANSNAP_FOLDER_URL"),
-      ARCHIVE_ROOT_FOLDER_ID: getFolderId("ARCHIVE_ROOT_FOLDER_ID", "ARCHIVE_ROOT_FOLDER_URL"),
+      ARCHIVE_ROOT_FOLDER_ID: getOptionalFolderId(
+        "ARCHIVE_ROOT_FOLDER_ID",
+        "ARCHIVE_ROOT_FOLDER_URL",
+      ),
       AI_PROVIDER: aiProvider,
       AI_MODEL: getOptionalEnv("AI_MODEL"),
       RENAME_MODE: getOptionalEnv("RENAME_MODE") || "review",
