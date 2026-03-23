@@ -1,5 +1,6 @@
 const WRITABLE_SCRIPT_PROPERTIES_ = Object.freeze([
   "SCANSNAP_FOLDER_ID",
+  "ARCHIVE_ROOT_FOLDER_ID",
   "AI_PROVIDER",
   "GEMINI_API_KEY",
   "OPENAI_API_KEY",
@@ -27,6 +28,7 @@ function setupScanRenameProject() {
   const summary = {
     logSpreadsheetId: logState.spreadsheetId,
     logSheetName: config.logSheetName,
+    archiveRootFolderId: config.archiveRootFolderId,
     renameMode: config.renameMode,
     aiProvider: config.aiProvider,
     aiModel: config.aiModel,
@@ -46,6 +48,7 @@ function runScanRenameJob() {
     renamed: 0,
     review_needed: 0,
     skipped: 0,
+    copy_failed: 0,
     error: 0,
   };
   const results = [];
@@ -151,6 +154,7 @@ function getScriptPropertiesTemplate() {
 
   return [
     "SCANSNAP_FOLDER_ID=",
+    "ARCHIVE_ROOT_FOLDER_ID=",
     `AI_PROVIDER=${provider}`,
     "GEMINI_API_KEY=",
     "OPENAI_API_KEY=",
@@ -185,12 +189,16 @@ function processSinglePdfFile_(fileMeta, config, logSheet) {
           documentType: "",
           subject: "",
           summary: "",
+          archiveRelativePath: "",
+          archiveFinalName: "",
+          archiveFileId: "",
           errorMessage: "OCR returned too little text to build a reliable filename.",
         },
       );
     }
 
     const suggestion = requestRenameSuggestion_(extractedText, fileMeta, config);
+    const archiveRelativePath = buildArchiveRelativePath_(suggestion, config);
     const suggestedName = ensureUniqueFileName_(
       config.scansnapFolderId,
       buildSuggestedFileName_(suggestion, fileMeta, config),
@@ -200,9 +208,63 @@ function processSinglePdfFile_(fileMeta, config, logSheet) {
       config.renameMode === "rename" &&
       suggestedName !== fileMeta.name &&
       suggestion.confidence >= config.minConfidence;
+    const shouldCopyToArchive =
+      config.renameMode === "rename" && suggestion.confidence >= config.minConfidence;
+    const sourceFileName = shouldRename ? suggestedName : fileMeta.name;
+    let archiveFinalName = "";
+    let archiveFileId = "";
 
     if (shouldRename) {
       renameDriveFile_(fileMeta.id, suggestedName);
+    }
+
+    if (shouldCopyToArchive) {
+      try {
+        const archiveFolder = ensureArchiveFolderByPath_(
+          config.archiveRootFolderId,
+          archiveRelativePath,
+        );
+
+        archiveFinalName = ensureUniqueFileNameInFolder_(
+          archiveFolder.id,
+          sourceFileName,
+          fileMeta.id,
+        );
+        archiveFileId = String(
+          (copyDriveFileToFolder_(fileMeta.id, archiveFolder.id, archiveFinalName) || {}).id || "",
+        );
+      } catch (error) {
+        const message = getErrorMessage_(error);
+        const result = logProcessingResult_(
+          logSheet,
+          fileMeta,
+          {
+            status: "copy_failed",
+            suggestedName: suggestedName,
+            finalName: shouldRename ? suggestedName : "",
+            confidence: suggestion.confidence,
+            documentDate: suggestion.documentDate,
+            issuer: suggestion.issuer,
+            documentType: suggestion.documentType,
+            subject: suggestion.subject,
+            summary: suggestion.summary,
+            archiveRelativePath: archiveRelativePath,
+            archiveFinalName: archiveFinalName,
+            archiveFileId: "",
+            errorMessage: message,
+          },
+        );
+
+        logError_("Scan archive copy failed.", {
+          fileId: fileMeta.id,
+          originalName: fileMeta.name,
+          finalName: shouldRename ? suggestedName : fileMeta.name,
+          archiveRelativePath: archiveRelativePath,
+          error: message,
+        });
+
+        return result;
+      }
     }
 
     return logProcessingResult_(
@@ -222,13 +284,17 @@ function processSinglePdfFile_(fileMeta, config, logSheet) {
         documentType: suggestion.documentType,
         subject: suggestion.subject,
         summary: suggestion.summary,
-        errorMessage: shouldRename
-          ? ""
-          : suggestedName === fileMeta.name
-            ? "Suggested filename matched the current filename."
+        archiveRelativePath: archiveRelativePath,
+        archiveFinalName: archiveFinalName,
+        archiveFileId: archiveFileId,
+        errorMessage:
+          shouldRename || shouldCopyToArchive
+            ? ""
             : config.renameMode === "review"
               ? "Review mode is enabled."
-              : `Confidence ${suggestion.confidence} is below MIN_CONFIDENCE ${config.minConfidence}.`,
+              : suggestedName === fileMeta.name
+                ? "Suggested filename matched the current filename."
+                : `Confidence ${suggestion.confidence} is below MIN_CONFIDENCE ${config.minConfidence}.`,
       },
     );
   } catch (error) {
@@ -246,6 +312,9 @@ function processSinglePdfFile_(fileMeta, config, logSheet) {
         documentType: "",
         subject: "",
         summary: "",
+        archiveRelativePath: "",
+        archiveFinalName: "",
+        archiveFileId: "",
         errorMessage: message,
       },
     );
@@ -274,6 +343,9 @@ function logProcessingResult_(logSheet, fileMeta, result) {
     documentType: result.documentType,
     subject: result.subject,
     summary: result.summary,
+    archiveRelativePath: result.archiveRelativePath,
+    archiveFinalName: result.archiveFinalName,
+    archiveFileId: result.archiveFileId,
     errorMessage: result.errorMessage,
   });
 
@@ -284,6 +356,9 @@ function logProcessingResult_(logSheet, fileMeta, result) {
     suggestedName: result.suggestedName,
     finalName: result.finalName,
     confidence: result.confidence,
+    archiveRelativePath: result.archiveRelativePath,
+    archiveFinalName: result.archiveFinalName,
+    archiveFileId: result.archiveFileId,
     errorMessage: result.errorMessage,
   };
 }
@@ -323,6 +398,7 @@ function normalizeSetupRequest_(setupRequest) {
 function getSafeConfigSummary_(config) {
   return {
     scansnapFolderId: config.scansnapFolderId,
+    archiveRootFolderId: config.archiveRootFolderId,
     aiProvider: config.aiProvider,
     aiModel: config.aiModel,
     renameMode: config.renameMode,

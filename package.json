@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check scripts/init-local-env.mjs && node --check scripts/write-clasp-config.mjs && node --check src/ai.js && node --check src/config.js && node --check src/drive.js && node --check src/filename.js && node --check src/log-sheet.js && node --check src/logger.js && node --check src/main.js && node --check src/ocr.js && node --check src/utils.js",
+    "check": "node --check scripts/init-local-env.mjs && node --check scripts/write-clasp-config.mjs && node --check src/ai.js && node --check src/archive.js && node --check src/config.js && node --check src/drive.js && node --check src/filename.js && node --check src/log-sheet.js && node --check src/logger.js && node --check src/main.js && node --check src/ocr.js && node --check src/utils.js",
     "env:init": "node scripts/init-local-env.mjs",
     "clasp:configure": "dotenvx run -- node scripts/write-clasp-config.mjs",
     "clasp:push": "bun run clasp:configure && clasp push",

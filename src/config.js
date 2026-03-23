@@ -30,6 +30,7 @@ function getConfig_() {
 
   return {
     scansnapFolderId: requireStringProperty_(properties, "SCANSNAP_FOLDER_ID"),
+    archiveRootFolderId: requireStringProperty_(properties, "ARCHIVE_ROOT_FOLDER_ID"),
     aiProvider: aiProvider,
     aiModel: aiModel,
     renameMode: normalizeRenameMode_(

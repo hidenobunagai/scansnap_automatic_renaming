@@ -10,6 +10,7 @@ Google Drive 上の ScanSnap PDF を定期的に見に行き、OCR と AI で分
 - Google Drive OCR でテキスト抽出
 - Gemini または OpenAI に命名候補を生成させる
 - `YYYY-MM-DD_発行元_書類種別_要点.pdf` 形式へ整形
+- `書類種別/発行元` のフォルダ構成で家族共有フォルダへコピー
 - 重複ファイル名は `_2`, `_3` を付けて回避
 - 結果をスプレッドシートへ記録
 - `review` と `rename` の 2 モードに対応
@@ -50,6 +51,7 @@ bun run clasp:push
 
 ```bash
 dotenvx set SCANSNAP_FOLDER_ID your-drive-folder-id
+dotenvx set ARCHIVE_ROOT_FOLDER_URL https://drive.google.com/drive/folders/your-family-folder-id
 dotenvx set GEMINI_API_KEY your-gemini-api-key
 bun run setup:remote
 ```
@@ -63,6 +65,7 @@ bun run setup:remote
 | Key | Required | Example | Notes |
 | --- | --- | --- | --- |
 | `SCANSNAP_FOLDER_ID` | yes | `1AbCdEf...` | 監視対象の Drive folder ID |
+| `ARCHIVE_ROOT_FOLDER_ID` | yes | `1FamilyFolder...` | 共有アーカイブ先の Drive folder ID |
 | `AI_PROVIDER` | no | `gemini` | `gemini` または `openai`。未指定時は `gemini` |
 | `GEMINI_API_KEY` | provider=gemini | `AIza...` | Gemini を使う場合 |
 | `OPENAI_API_KEY` | provider=openai | `sk-...` | OpenAI を使う場合 |
@@ -99,5 +102,7 @@ bun run setup:remote
 
 - OCR テキストがほぼ取れない場合は `review_needed` で止めます。
 - `review` で確認したファイルは、`rename` に切り替えた最初の実行で 1 回だけ再処理されます。
+- `rename` ではファイル名がすでに確定していても、未コピーなら共有アーカイブへコピーします。
+- 共有先コピーに失敗したファイルは `copy_failed` で記録され、次回実行で再試行されます。
 - 再処理したいファイルは、ログシートから該当行を消して再実行してください。
 - 大きい PDF や画像中心の PDF が増えたら、OCR / AI 呼び出しだけ Cloud Run へ切り出すのが次の一手です。

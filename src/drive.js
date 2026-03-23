@@ -61,6 +61,31 @@ function renameDriveFile_(fileId, newTitle) {
   );
 }
 
+function ensureArchiveFolderByPath_(rootFolderId, relativePath) {
+  const segments = String(relativePath || "")
+    .split("/")
+    .map(collapseWhitespace_)
+    .filter(Boolean);
+
+  if (!segments.length) {
+    throw new Error("Archive path must include at least one folder segment.");
+  }
+
+  return segments.reduce(function(parentState, segment) {
+    const folder = findOrCreateChildFolder_(parentState.id, segment);
+    const nextPath = parentState.path ? `${parentState.path}/${segment}` : segment;
+
+    return {
+      id: folder.id,
+      title: folder.title,
+      path: nextPath,
+    };
+  }, {
+    id: rootFolderId,
+    path: "",
+  });
+}
+
 function ensureUniqueFileName_(folderId, proposedName, currentFileId) {
   const extensionIndex = proposedName.lastIndexOf(".");
   const basename = extensionIndex === -1 ? proposedName : proposedName.slice(0, extensionIndex);
@@ -75,6 +100,23 @@ function ensureUniqueFileName_(folderId, proposedName, currentFileId) {
   }
 
   return candidate;
+}
+
+function ensureUniqueFileNameInFolder_(folderId, proposedName, currentFileId) {
+  return ensureUniqueFileName_(folderId, proposedName, currentFileId);
+}
+
+function copyDriveFileToFolder_(fileId, folderId, newTitle) {
+  return Drive.Files.copy(
+    {
+      title: newTitle,
+      parents: [{ id: folderId }],
+    },
+    fileId,
+    {
+      supportsAllDrives: true,
+    },
+  );
 }
 
 function driveFileNameExists_(folderId, fileName, currentFileId) {
@@ -94,4 +136,42 @@ function driveFileNameExists_(folderId, fileName, currentFileId) {
   return (response.items || []).some(function(item) {
     return item.id !== currentFileId;
   });
+}
+
+function findOrCreateChildFolder_(parentFolderId, folderName) {
+  const existingFolder = findChildFolder_(parentFolderId, folderName);
+
+  if (existingFolder) {
+    return existingFolder;
+  }
+
+  return Drive.Files.insert(
+    {
+      title: folderName,
+      mimeType: "application/vnd.google-apps.folder",
+      parents: [{ id: parentFolderId }],
+    },
+    null,
+    {
+      supportsAllDrives: true,
+    },
+  );
+}
+
+function findChildFolder_(parentFolderId, folderName) {
+  const query = [
+    `'${escapeDriveQueryValue_(parentFolderId)}' in parents`,
+    "mimeType = 'application/vnd.google-apps.folder'",
+    `title = '${escapeDriveQueryValue_(folderName)}'`,
+    "trashed = false",
+  ].join(" and ");
+
+  const response = Drive.Files.list({
+    q: query,
+    maxResults: 10,
+    includeItemsFromAllDrives: true,
+    supportsAllDrives: true,
+  });
+
+  return (response.items || [])[0] || null;
 }

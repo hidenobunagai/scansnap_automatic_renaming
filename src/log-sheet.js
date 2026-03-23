@@ -11,8 +11,18 @@ const LOG_HEADERS_ = Object.freeze([
   "documentType",
   "subject",
   "summary",
+  "archiveRelativePath",
+  "archiveFinalName",
+  "archiveFileId",
   "errorMessage",
 ]);
+
+const LOG_HEADER_INDEX_ = Object.freeze({
+  fileId: LOG_HEADERS_.indexOf("fileId"),
+  status: LOG_HEADERS_.indexOf("status"),
+  archiveFileId: LOG_HEADERS_.indexOf("archiveFileId"),
+  errorMessage: LOG_HEADERS_.indexOf("errorMessage"),
+});
 
 function getLogState_(config) {
   const spreadsheetId = ensureLogSpreadsheetId_(config);
@@ -74,11 +84,12 @@ function getProcessedFileMap_(sheet, renameMode) {
   const processedFileMap = {};
 
   values.forEach(function(row) {
-    const fileId = collapseWhitespace_(row[1]);
-    const status = collapseWhitespace_(row[2]);
-    const errorMessage = collapseWhitespace_(row[12]);
+    const fileId = collapseWhitespace_(row[LOG_HEADER_INDEX_.fileId]);
+    const status = collapseWhitespace_(row[LOG_HEADER_INDEX_.status]);
+    const archiveFileId = collapseWhitespace_(row[LOG_HEADER_INDEX_.archiveFileId]);
+    const errorMessage = collapseWhitespace_(row[LOG_HEADER_INDEX_.errorMessage]);
 
-    if (fileId && shouldTreatLogRowAsProcessed_(status, errorMessage, renameMode)) {
+    if (fileId && shouldTreatLogRowAsProcessed_(status, errorMessage, renameMode, archiveFileId)) {
       processedFileMap[fileId] = true;
     }
   });
@@ -86,8 +97,8 @@ function getProcessedFileMap_(sheet, renameMode) {
   return processedFileMap;
 }
 
-function shouldTreatLogRowAsProcessed_(status, errorMessage, renameMode) {
-  if (!status || status === "error") {
+function shouldTreatLogRowAsProcessed_(status, errorMessage, renameMode, archiveFileId) {
+  if (!status || status === "error" || status === "copy_failed") {
     return false;
   }
 
@@ -95,6 +106,14 @@ function shouldTreatLogRowAsProcessed_(status, errorMessage, renameMode) {
     renameMode === "rename" &&
     status === "review_needed" &&
     errorMessage === "Review mode is enabled."
+  ) {
+    return false;
+  }
+
+  if (
+    renameMode === "rename" &&
+    (status === "renamed" || status === "skipped") &&
+    !collapseWhitespace_(archiveFileId)
   ) {
     return false;
   }
@@ -116,6 +135,9 @@ function appendLogRow_(sheet, entry) {
     entry.documentType || "",
     entry.subject || "",
     entry.summary || "",
+    entry.archiveRelativePath || "",
+    entry.archiveFinalName || "",
+    entry.archiveFileId || "",
     entry.errorMessage || "",
   ]);
 }

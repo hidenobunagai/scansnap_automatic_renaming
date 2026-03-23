@@ -26,11 +26,11 @@ function getOptionalEnv(name) {
   return value || "";
 }
 
-function getFolderId() {
-  const rawValue = getOptionalEnv("SCANSNAP_FOLDER_ID") || getOptionalEnv("SCANSNAP_FOLDER_URL");
+function getFolderId(idKey, urlKey) {
+  const rawValue = getOptionalEnv(idKey) || getOptionalEnv(urlKey);
 
   if (!rawValue) {
-    throw new Error("Set SCANSNAP_FOLDER_ID or SCANSNAP_FOLDER_URL before running remote setup.");
+    throw new Error(`Set ${idKey} or ${urlKey} before running remote setup.`);
   }
 
   const urlMatch = rawValue.match(/\/folders\/([a-zA-Z0-9_-]+)/);
@@ -46,7 +46,8 @@ function buildSetupRequest() {
   const aiProvider = (getOptionalEnv("AI_PROVIDER") || "gemini").toLowerCase();
   const request = {
     properties: {
-      SCANSNAP_FOLDER_ID: getFolderId(),
+      SCANSNAP_FOLDER_ID: getFolderId("SCANSNAP_FOLDER_ID", "SCANSNAP_FOLDER_URL"),
+      ARCHIVE_ROOT_FOLDER_ID: getFolderId("ARCHIVE_ROOT_FOLDER_ID", "ARCHIVE_ROOT_FOLDER_URL"),
       AI_PROVIDER: aiProvider,
       AI_MODEL: getOptionalEnv("AI_MODEL"),
       RENAME_MODE: getOptionalEnv("RENAME_MODE") || "review",
