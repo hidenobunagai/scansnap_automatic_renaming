@@ -117,7 +117,7 @@ function getFileStateMap_(sheet, renameMode) {
 }
 
 function parseLogRow_(row) {
-  return {
+  const currentLayoutEntry = {
     processedAt: getLogRowValue_(row, "processedAt"),
     fileId: getLogRowValue_(row, "fileId"),
     status: getLogRowValue_(row, "status"),
@@ -135,6 +135,106 @@ function parseLogRow_(row) {
     archiveFinalName: getLogRowValue_(row, "archiveFinalName"),
     archiveFileId: getLogRowValue_(row, "archiveFileId"),
   };
+
+  const temporaryArchiveLayoutEntry = parseTemporaryArchiveLayoutRow_(row);
+
+  if (shouldUseTemporaryArchiveLayout_(currentLayoutEntry, temporaryArchiveLayoutEntry)) {
+    return temporaryArchiveLayoutEntry;
+  }
+
+  return currentLayoutEntry;
+}
+
+function parseTemporaryArchiveLayoutRow_(row) {
+  return {
+    processedAt: getLogRowValue_(row, "processedAt"),
+    fileId: getLogRowValue_(row, "fileId"),
+    status: getLogRowValue_(row, "status"),
+    originalName: getLogRowValue_(row, "originalName"),
+    suggestedName: getLogRowValue_(row, "suggestedName"),
+    finalName: getLogRowValue_(row, "finalName"),
+    confidence: getLogRowNumber_(row, "confidence"),
+    documentDate: getLogRowValue_(row, "documentDate"),
+    issuer: getLogRowValue_(row, "issuer"),
+    documentType: getLogRowValue_(row, "documentType"),
+    subject: getLogRowValue_(row, "subject"),
+    summary: getLogRowValue_(row, "summary"),
+    archiveRelativePath: collapseWhitespace_(row[12]),
+    archiveFinalName: collapseWhitespace_(row[13]),
+    archiveFileId: collapseWhitespace_(row[14]),
+    errorMessage: collapseWhitespace_(row[15]),
+  };
+}
+
+function shouldUseTemporaryArchiveLayout_(currentLayoutEntry, temporaryArchiveLayoutEntry) {
+  return (
+    scoreParsedArchiveLayout_(temporaryArchiveLayoutEntry) >
+    scoreParsedArchiveLayout_(currentLayoutEntry)
+  );
+}
+
+function scoreParsedArchiveLayout_(entry) {
+  let score = 0;
+
+  if (looksLikeArchivePath_(entry.archiveRelativePath)) {
+    score += 3;
+  } else if (!entry.archiveRelativePath) {
+    score += 1;
+  }
+
+  if (looksLikeArchiveFileName_(entry.archiveFinalName)) {
+    score += 2;
+  } else if (!entry.archiveFinalName) {
+    score += 1;
+  }
+
+  if (looksLikeArchiveFileId_(entry.archiveFileId)) {
+    score += 2;
+  } else if (!entry.archiveFileId) {
+    score += 1;
+  }
+
+  if (looksLikeErrorMessage_(entry.errorMessage)) {
+    score += 2;
+  } else if (!entry.errorMessage) {
+    score += 1;
+  }
+
+  return score;
+}
+
+function looksLikeArchivePath_(value) {
+  return collapseWhitespace_(value).indexOf("/") !== -1;
+}
+
+function looksLikeArchiveFileName_(value) {
+  const text = collapseWhitespace_(value);
+
+  if (!text) {
+    return false;
+  }
+
+  return /\.pdf$/i.test(text);
+}
+
+function looksLikeArchiveFileId_(value) {
+  const text = collapseWhitespace_(value);
+
+  if (!text) {
+    return false;
+  }
+
+  return !/\s/.test(text) && text.indexOf("/") === -1 && !/\.pdf$/i.test(text);
+}
+
+function looksLikeErrorMessage_(value) {
+  const text = collapseWhitespace_(value);
+
+  if (!text) {
+    return false;
+  }
+
+  return !looksLikeArchivePath_(text) && !looksLikeArchiveFileName_(text);
 }
 
 function getLogRowValue_(row, key) {

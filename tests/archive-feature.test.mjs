@@ -434,6 +434,52 @@ describe("getFileStateMap_", () => {
     expect(fileStateMap["file-1"].processed).toBe(false);
     expect(fileStateMap["file-1"].lastEntry.errorMessage).toBe("Review mode is enabled.");
   });
+
+  test("parses rows written with the temporary broken archive column order", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js", "src/log-sheet.js"],
+    });
+
+    const fileStateMap = context.getFileStateMap_(
+      {
+        getLastRow() {
+          return 2;
+        },
+        getRange() {
+          return {
+            getValues() {
+              return [[
+                "2026-03-01T00:00:00.000Z",
+                "file-1",
+                "copy_failed",
+                "scan.pdf",
+                "2026-03-01_市役所_税通知_令和8年度.pdf",
+                "2026-03-01_市役所_税通知_令和8年度.pdf",
+                0.96,
+                "2026-03-01",
+                "市役所",
+                "税通知",
+                "令和8年度",
+                "税通知のテスト",
+                "税通知/市役所",
+                "2026-03-01_市役所_税通知_令和8年度.pdf",
+                "",
+                "Archive folder is unavailable.",
+              ]];
+            },
+          };
+        },
+      },
+      "rename",
+    );
+
+    expect(fileStateMap["file-1"].processed).toBe(false);
+    expect(fileStateMap["file-1"].lastEntry.archiveRelativePath).toBe("税通知/市役所");
+    expect(fileStateMap["file-1"].lastEntry.archiveFinalName).toBe(
+      "2026-03-01_市役所_税通知_令和8年度.pdf",
+    );
+    expect(fileStateMap["file-1"].lastEntry.errorMessage).toBe("Archive folder is unavailable.");
+  });
 });
 
 describe("validateRunConfig_", () => {
