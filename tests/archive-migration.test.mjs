@@ -60,11 +60,24 @@ function createMigrationContext(overrides = {}) {
               return overrides.listFiles ? overrides.listFiles(params, query) : { items: [] };
             },
           patch(patchData, fileId, params) {
+            if (overrides.patchFile) {
+              overrides.patchFile(patchData, fileId, params);
+            }
             archivedFiles.push({ patchData, fileId, params });
             return { id: fileId, title: patchData.title || "" };
           },
+          insert(resource, unused, params) {
+            if (overrides.insertFolder) {
+              return overrides.insertFolder(resource, params);
+            }
+
+            return { id: resource.title || "new-folder", title: resource.title || "" };
+          },
           remove(fileId, params) {
             deletedFolders.push(fileId);
+            if (overrides.removeFolder) {
+              overrides.removeFolder(fileId, params);
+            }
           },
         },
       },
@@ -220,40 +233,73 @@ describe("migrateArchiveFolderStructure", () => {
     const tokyoFolderId = "folder-tokyo-power";
     const cityFolderId = "folder-city-hall";
 
-    const { context } = createMigrationContext({
+    const items = [
+      createFolderItem(invoiceFolderId, "明細書", "archive-root"),
+      createFolderItem(receiptFolderId, "領収書", "archive-root"),
+      createFolderItem(cityFolderId, "市役所", invoiceFolderId),
+      createFolderItem(tokyoFolderId, "東京電力", receiptFolderId),
+      createFileItem("file-city-invoice", "2026-03-01_市役所_明細書_2月.pdf", cityFolderId),
+      createFileItem("file-tokyo-receipt", "2026-03-01_東京電力_領収書_1月.pdf", tokyoFolderId),
+    ];
+
+    const migration = createMigrationContext({
       listFolders(params, query) {
-        if (query.indexOf("application/vnd.google-apps.folder") !== -1) {
-          if (query.indexOf("archive-root") !== -1) {
-            if (query.indexOf(invoiceFolderId) === -1 && query.indexOf(receiptFolderId) === -1 && query.indexOf(tokyoFolderId) === -1 && query.indexOf(cityFolderId) === -1) {
-              return {
-                items: [
-                  createFolderItem(invoiceFolderId, "明細書", "archive-root"),
-                  createFolderItem(receiptFolderId, "領収書", "archive-root"),
-                ],
-              };
+        const parentId = query.match(/'([^']+)' in parents/)[1];
+        const titleMatch = query.match(/title = '([^']+)'/);
+        return {
+          items: items.filter(function(item) {
+            if (item.parents[0].id !== parentId || item.mimeType !== "application/vnd.google-apps.folder") {
+              return false;
             }
-          }
-          if (query.indexOf(invoiceFolderId) !== -1) {
-            return { items: [createFolderItem(cityFolderId, "市役所", invoiceFolderId)] };
-          }
-          if (query.indexOf(receiptFolderId) !== -1) {
-            return { items: [createFolderItem(tokyoFolderId, "東京電力", receiptFolderId)] };
-          }
-        }
-        return { items: [] };
+
+            if (titleMatch) {
+              return item.title === titleMatch[1];
+            }
+
+            return true;
+          }),
+        };
       },
       listFiles(params, query) {
-        if (query.indexOf(tokyoFolderId) !== -1) {
-          return {
-            items: [createFileItem("file-tokyo-receipt", "2026-03-01_東京電力_領収書_1月.pdf", tokyoFolderId)],
-          };
+        const parentId = query.match(/'([^']+)' in parents/)[1];
+        const isFilesOnly = query.indexOf("mimeType != 'application/vnd.google-apps.folder'") !== -1;
+        return {
+          items: items.filter(function(item) {
+            if (item.parents[0].id !== parentId) {
+              return false;
+            }
+
+            if (isFilesOnly) {
+              return item.mimeType !== "application/vnd.google-apps.folder";
+            }
+
+            return true;
+          }),
+        };
+      },
+      patchFile(patchData, fileId) {
+        const file = items.find(function(item) {
+          return item.id === fileId;
+        });
+        file.parents = patchData.parents;
+      },
+      insertFolder(resource) {
+        const createdFolder = createFolderItem(
+          `new-${resource.parents[0].id}-${resource.title}`,
+          resource.title,
+          resource.parents[0].id,
+        );
+        items.push(createdFolder);
+        return createdFolder;
+      },
+      removeFolder(fileId) {
+        const index = items.findIndex(function(item) {
+          return item.id === fileId;
+        });
+
+        if (index !== -1) {
+          items.splice(index, 1);
         }
-        if (query.indexOf(cityFolderId) !== -1) {
-          return {
-            items: [createFileItem("file-city-invoice", "2026-03-01_市役所_明細書_2月.pdf", cityFolderId)],
-          };
-        }
-        return { items: [] };
       },
       globals: {
         findOrCreateChildFolder_(parentId, name) {
@@ -275,11 +321,87 @@ describe("migrateArchiveFolderStructure", () => {
       },
     });
 
+    const { context, archivedFiles, deletedFolders, updatedProperties, deletedProperties } = migration;
+
     const result = context.migrateArchiveFolderStructure();
 
     expect(result.movedFiles).toBe(2);
     expect(result.failedFiles).toBe(0);
     expect(result.errors).toHaveLength(0);
+    expect(result.logPathsMigrated).toBe(true);
+    expect(archivedFiles.map(function(file) {
+      return file.fileId;
+    })).toEqual(["file-city-invoice", "file-tokyo-receipt"]);
+    expect(archivedFiles).toEqual([
+      expect.objectContaining({
+        fileId: "file-city-invoice",
+        patchData: { parents: [{ id: "new-new-archive-root-市役所-明細書" }] },
+      }),
+      expect.objectContaining({
+        fileId: "file-tokyo-receipt",
+        patchData: { parents: [{ id: "new-new-archive-root-東京電力-領収書" }] },
+      }),
+    ]);
+    expect(deletedFolders).toEqual([
+      cityFolderId,
+      invoiceFolderId,
+      tokyoFolderId,
+      receiptFolderId,
+    ]);
+    expect(updatedProperties.lastMigratedDocumentType).toBe("領収書");
+    expect(deletedProperties).toContain("lastMigratedDocumentType");
+  });
+
+  test("skips log path migration when a file move fails", () => {
+    const docTypeFolderId = "folder-receipt";
+    const issuerFolderId = "folder-tokyo-power";
+
+    const { context } = createMigrationContext({
+      listFolders(params, query) {
+        if (query.indexOf("archive-root") !== -1) {
+          return {
+            items: [createFolderItem(docTypeFolderId, "領収書", "archive-root")],
+          };
+        }
+
+        if (query.indexOf(docTypeFolderId) !== -1) {
+          return {
+            items: [createFolderItem(issuerFolderId, "東京電力", docTypeFolderId)],
+          };
+        }
+
+        return { items: [] };
+      },
+      listFiles(params, query) {
+        if (query.indexOf(issuerFolderId) !== -1) {
+          return {
+            items: [createFileItem("file-fails", "2026-03-01_東京電力_領収書_1月.pdf", issuerFolderId)],
+          };
+        }
+
+        return { items: [] };
+      },
+      patchFile(patchData, fileId) {
+        if (fileId === "file-fails") {
+          throw new Error("move failed");
+        }
+      },
+      insertFolder(resource) {
+        return createFolderItem(`new-${resource.parents[0].id}-${resource.title}`, resource.title, resource.parents[0].id);
+      },
+      globals: {
+        ensureArchiveFolderByPath_() {
+          return { id: "new-folder", title: "領収書", path: "東京電力/領収書" };
+        },
+        logInfo_() {},
+        logError_() {},
+      },
+    });
+
+    const result = context.migrateArchiveFolderStructure();
+
+    expect(result.failedFiles).toBe(1);
+    expect(result.logPathsMigrated).toBe(false);
   });
 
   test("skips folders alphabetically before lastMigratedDocumentType for resume", () => {

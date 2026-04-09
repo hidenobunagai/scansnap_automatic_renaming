@@ -105,7 +105,11 @@ function migrateArchiveFolderStructure() {
     propertiesService.setProperty("lastMigratedDocumentType", docTypeFolder.title);
   });
 
-  migrateArchivePathsInLog_(config);
+  var logPathsMigrated = counts.failedFiles === 0;
+
+  if (logPathsMigrated) {
+    migrateArchivePathsInLog_(config);
+  }
 
   propertiesService.deleteProperty("lastMigratedDocumentType");
 
@@ -114,6 +118,7 @@ function migrateArchiveFolderStructure() {
     failedFiles: counts.failedFiles,
     deletedFolders: counts.deletedFolders,
     skippedFolders: counts.skippedFolders,
+    logPathsMigrated: logPathsMigrated,
     errors: errors,
   };
 
