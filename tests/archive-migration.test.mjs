@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { createAppsScriptContext } from "./helpers/apps-script-context.mjs";
 
+const LOG_HEADERS = [
+  "processedAt", "fileId", "status", "originalName", "suggestedName", "finalName",
+  "confidence", "documentDate", "issuer", "documentType", "subject", "summary",
+  "errorMessage", "archiveRelativePath", "archiveFinalName", "archiveFileId",
+];
+
 function createMigrationContext(overrides = {}) {
   const archivedFiles = [];
   const deletedFolders = [];
@@ -8,12 +14,6 @@ function createMigrationContext(overrides = {}) {
   const deletedProperties = [];
 
   const rootFolderId = "archive-root";
-
-  const LOG_HEADERS = [
-    "processedAt", "fileId", "status", "originalName", "suggestedName", "finalName",
-    "confidence", "documentDate", "issuer", "documentType", "subject", "summary",
-    "errorMessage", "archiveRelativePath", "archiveFinalName", "archiveFileId",
-  ];
 
   const scriptProperties = {
     getProperties() {
@@ -242,6 +242,28 @@ describe("migrateArchiveFolderStructure", () => {
       createFileItem("file-tokyo-receipt", "2026-03-01_東京電力_領収書_1月.pdf", tokyoFolderId),
     ];
 
+    const logValues = [[
+      ...LOG_HEADERS,
+    ], [
+      "2026-03-01T00:00:00Z",
+      "file-tokyo-receipt",
+      "renamed",
+      "scan.pdf",
+      "2026-03-01_東京電力_領収書_1月.pdf",
+      "2026-03-01_東京電力_領収書_1月.pdf",
+      0.99,
+      "2026-03-01",
+      "東京電力",
+      "領収書",
+      "1月分",
+      "summary",
+      "",
+      "領収書/東京電力",
+      "2026-03-01_東京電力_領収書_1月.pdf",
+      "archived-file-id",
+    ]];
+    const setValuesCalls = [];
+
     const migration = createMigrationContext({
       listFolders(params, query) {
         const parentId = query.match(/'([^']+)' in parents/)[1];
@@ -301,6 +323,28 @@ describe("migrateArchiveFolderStructure", () => {
           items.splice(index, 1);
         }
       },
+      logSheet: {
+        getLastRow() { return logValues.length; },
+        getRange() {
+          return {
+            getValues() {
+              return logValues.map(function(row) {
+                return row.slice();
+              });
+            },
+            setValues(values) {
+              setValuesCalls.push(values.map(function(row) {
+                return row.slice();
+              }));
+              logValues.splice(0, logValues.length, ...values.map(function(row) {
+                return row.slice();
+              }));
+            },
+          };
+        },
+        setFrozenRows() {},
+        autoResizeColumns() {},
+      },
       globals: {
         findOrCreateChildFolder_(parentId, name) {
           return { id: `new-${parentId}-${name}`, title: name };
@@ -350,11 +394,35 @@ describe("migrateArchiveFolderStructure", () => {
     ]);
     expect(updatedProperties.lastMigratedDocumentType).toBe("領収書");
     expect(deletedProperties).toContain("lastMigratedDocumentType");
+    expect(setValuesCalls).toHaveLength(1);
+    expect(setValuesCalls[0][1][13]).toBe("東京電力/領収書");
+    expect(logValues[1][13]).toBe("東京電力/領収書");
   });
 
   test("skips log path migration when a file move fails", () => {
     const docTypeFolderId = "folder-receipt";
     const issuerFolderId = "folder-tokyo-power";
+    const logValues = [[
+      ...LOG_HEADERS,
+    ], [
+      "2026-03-01T00:00:00Z",
+      "file-fails",
+      "renamed",
+      "scan.pdf",
+      "2026-03-01_東京電力_領収書_1月.pdf",
+      "2026-03-01_東京電力_領収書_1月.pdf",
+      0.99,
+      "2026-03-01",
+      "東京電力",
+      "領収書",
+      "1月分",
+      "summary",
+      "",
+      "領収書/東京電力",
+      "2026-03-01_東京電力_領収書_1月.pdf",
+      "archived-file-id",
+    ]];
+    const setValuesCalls = [];
 
     const { context } = createMigrationContext({
       listFolders(params, query) {
@@ -389,6 +457,28 @@ describe("migrateArchiveFolderStructure", () => {
       insertFolder(resource) {
         return createFolderItem(`new-${resource.parents[0].id}-${resource.title}`, resource.title, resource.parents[0].id);
       },
+      logSheet: {
+        getLastRow() { return logValues.length; },
+        getRange() {
+          return {
+            getValues() {
+              return logValues.map(function(row) {
+                return row.slice();
+              });
+            },
+            setValues(values) {
+              setValuesCalls.push(values.map(function(row) {
+                return row.slice();
+              }));
+              logValues.splice(0, logValues.length, ...values.map(function(row) {
+                return row.slice();
+              }));
+            },
+          };
+        },
+        setFrozenRows() {},
+        autoResizeColumns() {},
+      },
       globals: {
         ensureArchiveFolderByPath_() {
           return { id: "new-folder", title: "領収書", path: "東京電力/領収書" };
@@ -402,6 +492,8 @@ describe("migrateArchiveFolderStructure", () => {
 
     expect(result.failedFiles).toBe(1);
     expect(result.logPathsMigrated).toBe(false);
+    expect(setValuesCalls).toHaveLength(0);
+    expect(logValues[1][13]).toBe("領収書/東京電力");
   });
 
   test("skips folders alphabetically before lastMigratedDocumentType for resume", () => {
