@@ -152,12 +152,25 @@ function listDirectChildFolders_(parentFolderId) {
     }
   }
 
+  folders.sort(function(a, b) {
+    if (a.title < b.title) {
+      return -1;
+    }
+
+    if (a.title > b.title) {
+      return 1;
+    }
+
+    return 0;
+  });
+
   return folders;
 }
 
 function listFilesInFolder_(folderId) {
   var query = [
     "'" + escapeDriveQueryValue_(folderId) + "' in parents",
+    "mimeType != 'application/vnd.google-apps.folder'",
     "trashed = false",
   ].join(" and ");
 

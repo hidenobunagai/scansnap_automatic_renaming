@@ -50,15 +50,15 @@ function createMigrationContext(overrides = {}) {
       getScriptProperties_() {
         return scriptProperties;
       },
-      Drive: {
-        Files: {
-          list(params) {
-            const query = params.q;
-            if (query.indexOf("application/vnd.google-apps.folder") !== -1) {
-              return overrides.listFolders ? overrides.listFolders(params, query) : { items: [] };
-            }
-            return overrides.listFiles ? overrides.listFiles(params, query) : { items: [] };
-          },
+        Drive: {
+          Files: {
+            list(params) {
+              const query = params.q;
+              if (query.indexOf("mimeType = 'application/vnd.google-apps.folder'") !== -1) {
+                return overrides.listFolders ? overrides.listFolders(params, query) : { items: [] };
+              }
+              return overrides.listFiles ? overrides.listFiles(params, query) : { items: [] };
+            },
           patch(patchData, fileId, params) {
             archivedFiles.push({ patchData, fileId, params });
             return { id: fileId, title: patchData.title || "" };
@@ -151,6 +151,65 @@ describe("reverseArchivePathSegments_", () => {
     });
 
     expect(context.reverseArchivePathSegments_("A/B/C")).toBe("B/A/C");
+  });
+});
+
+describe("listDirectChildFolders_", () => {
+  test("returns folders sorted by title ascending", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js", "src/archive.js"],
+      globals: {
+        Drive: {
+          Files: {
+            list() {
+              return {
+                items: [
+                  createFolderItem("folder-c", "C", "parent-folder"),
+                  createFolderItem("folder-a", "A", "parent-folder"),
+                  createFolderItem("folder-b", "B", "parent-folder"),
+                ],
+              };
+            },
+          },
+        },
+      },
+    });
+
+    const folders = context.listDirectChildFolders_("parent-folder");
+
+    expect(folders.map(function(folder) {
+      return folder.title;
+    })).toEqual(["A", "B", "C"]);
+  });
+});
+
+describe("listFilesInFolder_", () => {
+  test("excludes folders from results", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js", "src/archive.js"],
+      globals: {
+        Drive: {
+          Files: {
+            list(params) {
+              const allItems = [
+                createFileItem("file-1", "document.pdf", "parent-folder"),
+                createFolderItem("folder-1", "nested-folder", "parent-folder"),
+              ];
+
+              if (params.q.indexOf("mimeType != 'application/vnd.google-apps.folder'") !== -1) {
+                return { items: [allItems[0]] };
+              }
+
+              return { items: allItems };
+            },
+          },
+        },
+      },
+    });
+
+    const files = context.listFilesInFolder_("parent-folder");
+
+    expect(files).toEqual([{ id: "file-1", title: "document.pdf" }]);
   });
 });
 
