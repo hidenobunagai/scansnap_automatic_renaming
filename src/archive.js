@@ -6,14 +6,14 @@ const ARCHIVE_DEFAULTS_ = Object.freeze({
 function buildArchiveRelativePath_(suggestion, config) {
   return [
     normalizeArchiveSegment_(
-      suggestion.documentType,
-      ARCHIVE_DEFAULTS_.documentType,
-      config.maxDocumentTypeLength,
-    ),
-    normalizeArchiveSegment_(
       suggestion.issuer,
       ARCHIVE_DEFAULTS_.issuer,
       config.maxIssuerLength,
+    ),
+    normalizeArchiveSegment_(
+      suggestion.documentType,
+      ARCHIVE_DEFAULTS_.documentType,
+      config.maxDocumentTypeLength,
     ),
   ].join("/");
 }

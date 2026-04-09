@@ -21,7 +21,7 @@ function createProcessContext(overrides = {}) {
         return proposedName;
       },
       buildArchiveRelativePath_() {
-        return "税通知/市役所";
+        return "市役所/税通知";
       },
       ensureArchiveFolderByPath_(rootFolderId, relativePath) {
         return {
@@ -112,7 +112,7 @@ describe("buildArchiveRelativePath_", () => {
           maxIssuerLength: 30,
         },
       ),
-    ).toBe("税-通知/渋谷区役所");
+    ).toBe("渋谷区役所/税-通知");
   });
 
   test("falls back when document type and issuer are missing", () => {
@@ -131,7 +131,7 @@ describe("buildArchiveRelativePath_", () => {
           maxIssuerLength: 30,
         },
       ),
-    ).toBe("未分類/発行元不明");
+    ).toBe("発行元不明/未分類");
   });
 });
 
@@ -147,7 +147,7 @@ describe("processSinglePdfFile_", () => {
     );
 
     expect(result.status).toBe("review_needed");
-    expect(result.archiveRelativePath).toBe("税通知/市役所");
+    expect(result.archiveRelativePath).toBe("市役所/税通知");
     expect(result.archiveFileId).toBe("");
     expect(copied).toHaveLength(0);
     expect(renamed).toHaveLength(0);
@@ -201,7 +201,7 @@ describe("processSinglePdfFile_", () => {
     expect(copied).toEqual([
       {
         fileId: "file-1",
-        folderId: "folder:archive-root:税通知/市役所",
+        folderId: "folder:archive-root:市役所/税通知",
         fileName: "already-good.pdf",
       },
     ]);
@@ -263,7 +263,7 @@ describe("processSinglePdfFile_", () => {
           documentType: "税通知",
           subject: "令和8年度",
           summary: "税通知のテスト",
-          archiveRelativePath: "税通知/市役所",
+          archiveRelativePath: "市役所/税通知",
           archiveFinalName: "already-good.pdf",
           archiveFileId: "",
         },
@@ -275,7 +275,7 @@ describe("processSinglePdfFile_", () => {
     expect(copied).toEqual([
       {
         fileId: "file-1",
-        folderId: "folder:archive-root:税通知/市役所",
+        folderId: "folder:archive-root:市役所/税通知",
         fileName: "already-good.pdf",
       },
     ]);
@@ -313,7 +313,7 @@ describe("processSinglePdfFile_", () => {
           documentType: "税通知",
           subject: "令和8年度",
           summary: "税通知のテスト",
-          archiveRelativePath: "税通知/市役所",
+          archiveRelativePath: "市役所/税通知",
           archiveFinalName: "already-good.pdf",
           archiveFileId: "",
         },
@@ -358,7 +358,7 @@ describe("processSinglePdfFile_", () => {
           documentType: "税通知",
           subject: "令和8年度",
           summary: "税通知のテスト",
-          archiveRelativePath: "税通知/市役所",
+          archiveRelativePath: "市役所/税通知",
           archiveFinalName: "already-good.pdf",
           archiveFileId: "",
         },
@@ -461,7 +461,7 @@ describe("getFileStateMap_", () => {
                 "税通知",
                 "令和8年度",
                 "税通知のテスト",
-                "税通知/市役所",
+                "市役所/税通知",
                 "2026-03-01_市役所_税通知_令和8年度.pdf",
                 "",
                 "Archive folder is unavailable.",
@@ -474,7 +474,7 @@ describe("getFileStateMap_", () => {
     );
 
     expect(fileStateMap["file-1"].processed).toBe(false);
-    expect(fileStateMap["file-1"].lastEntry.archiveRelativePath).toBe("税通知/市役所");
+    expect(fileStateMap["file-1"].lastEntry.archiveRelativePath).toBe("市役所/税通知");
     expect(fileStateMap["file-1"].lastEntry.archiveFinalName).toBe(
       "2026-03-01_市役所_税通知_令和8年度.pdf",
     );
