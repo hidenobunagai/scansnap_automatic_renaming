@@ -225,15 +225,15 @@ describe("migrateArchiveFolderStructure", () => {
 
   test("skips folders alphabetically before lastMigratedDocumentType for resume", () => {
     const { context } = createMigrationContext({
-      lastMigratedDocumentType: "領収書",
+      lastMigratedDocumentType: "B",
       listFolders(params, query) {
         if (query.indexOf("archive-root") !== -1 && query.indexOf("application/vnd.google-apps.folder") !== -1) {
           if (query.indexOf("folder-") === -1) {
             return {
               items: [
-                createFolderItem("folder-a", "A書類", "archive-root"),
-                createFolderItem("folder-b", "領収書", "archive-root"),
-                createFolderItem("folder-c", "明細書", "archive-root"),
+                createFolderItem("folder-a", "A", "archive-root"),
+                createFolderItem("folder-b", "B", "archive-root"),
+                createFolderItem("folder-c", "C", "archive-root"),
               ],
             };
           }
@@ -250,6 +250,6 @@ describe("migrateArchiveFolderStructure", () => {
 
     const result = context.migrateArchiveFolderStructure();
 
-    expect(result.skippedFolders).toBeGreaterThanOrEqual(0);
+    expect(result.skippedFolders).toBe(2);
   });
 });

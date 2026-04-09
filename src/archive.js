@@ -201,7 +201,7 @@ function deleteEmptyFolder_(folderId) {
   });
 
   if ((response.items || []).length > 0) {
-    throw new Error("Folder is not empty.");
+    throw new Error("Folder is not empty");
   }
 
   Drive.Files.remove(folderId, { supportsAllDrives: true });
@@ -231,7 +231,7 @@ function migrateArchivePathsInLog_(config) {
     var currentPath = String(values[i][archivePathCol - 1] || "");
     var newPath = reverseArchivePathSegments_(currentPath);
 
-    if (newPath !== currentPath && currentPath.indexOf("/") !== -1) {
+    if (newPath !== currentPath && currentPath.split("/").length === 2) {
       values[i][archivePathCol - 1] = newPath;
       changed = true;
     }
