@@ -10,6 +10,7 @@ const LOG_HEADERS = [
 function createMigrationContext(overrides = {}) {
   const archivedFiles = [];
   const deletedFolders = [];
+  const driveGetCalls = [];
   const updatedProperties = {};
   const deletedProperties = [];
 
@@ -59,6 +60,13 @@ function createMigrationContext(overrides = {}) {
               }
               return overrides.listFiles ? overrides.listFiles(params, query) : { items: [] };
             },
+          get(fileId, params) {
+            driveGetCalls.push({ fileId, params });
+            if (overrides.getFile) {
+              return overrides.getFile(fileId, params);
+            }
+            return { parents: [] };
+          },
           patch(patchData, fileId, params) {
             if (overrides.patchFile) {
               overrides.patchFile(patchData, fileId, params);
@@ -119,6 +127,7 @@ function createMigrationContext(overrides = {}) {
     context,
     archivedFiles,
     deletedFolders,
+    driveGetCalls,
     updatedProperties,
     deletedProperties,
     rootFolderId,
@@ -299,11 +308,21 @@ describe("migrateArchiveFolderStructure", () => {
           }),
         };
       },
-      patchFile(patchData, fileId) {
+      getFile(fileId) {
         const file = items.find(function(item) {
           return item.id === fileId;
         });
-        file.parents = patchData.parents;
+        return {
+          parents: file.parents.map(function(parent) {
+            return parent.id;
+          }),
+        };
+      },
+      patchFile(patchData, fileId, params) {
+        const file = items.find(function(item) {
+          return item.id === fileId;
+        });
+        file.parents = [{ id: params.addParents }];
       },
       insertFolder(resource) {
         const createdFolder = createFolderItem(
@@ -365,7 +384,7 @@ describe("migrateArchiveFolderStructure", () => {
       },
     });
 
-    const { context, archivedFiles, deletedFolders, updatedProperties, deletedProperties } = migration;
+    const { context, archivedFiles, deletedFolders, driveGetCalls, updatedProperties, deletedProperties } = migration;
 
     const result = context.migrateArchiveFolderStructure();
 
@@ -377,14 +396,36 @@ describe("migrateArchiveFolderStructure", () => {
       return file.fileId;
     })).toEqual(["file-city-invoice", "file-tokyo-receipt"]);
     expect(archivedFiles).toEqual([
-      expect.objectContaining({
+      {
         fileId: "file-city-invoice",
-        patchData: { parents: [{ id: "new-new-archive-root-市役所-明細書" }] },
-      }),
-      expect.objectContaining({
+        patchData: {},
+        params: {
+          addParents: "new-new-archive-root-市役所-明細書",
+          removeParents: cityFolderId,
+          fields: "id,parents",
+          supportsAllDrives: true,
+        },
+      },
+      {
         fileId: "file-tokyo-receipt",
-        patchData: { parents: [{ id: "new-new-archive-root-東京電力-領収書" }] },
-      }),
+        patchData: {},
+        params: {
+          addParents: "new-new-archive-root-東京電力-領収書",
+          removeParents: tokyoFolderId,
+          fields: "id,parents",
+          supportsAllDrives: true,
+        },
+      },
+    ]);
+    expect(driveGetCalls).toEqual([
+      {
+        fileId: "file-city-invoice",
+        params: { fields: "parents", supportsAllDrives: true },
+      },
+      {
+        fileId: "file-tokyo-receipt",
+        params: { fields: "parents", supportsAllDrives: true },
+      },
     ]);
     expect(deletedFolders).toEqual([
       cityFolderId,
@@ -524,5 +565,71 @@ describe("migrateArchiveFolderStructure", () => {
     const result = context.migrateArchiveFolderStructure();
 
     expect(result.skippedFolders).toBe(2);
+  });
+
+  test("retains checkpoint when logInfo_ fails after successful moves", () => {
+    const docTypeFolderId = "folder-receipt";
+    const issuerFolderId = "folder-tokyo-power";
+    const movedFileId = "file-ok";
+    const items = [
+      createFolderItem(docTypeFolderId, "領収書", "archive-root"),
+      createFolderItem(issuerFolderId, "東京電力", docTypeFolderId),
+      createFileItem(movedFileId, "2026-03-01_東京電力_領収書_1月.pdf", issuerFolderId),
+    ];
+
+    const migration = createMigrationContext({
+      listFolders(params, query) {
+        const parentId = query.match(/'([^']+)' in parents/)[1];
+        return {
+          items: items.filter(function(item) {
+            return item.parents[0].id === parentId && item.mimeType === "application/vnd.google-apps.folder";
+          }),
+        };
+      },
+      listFiles(params, query) {
+        const parentId = query.match(/'([^']+)' in parents/)[1];
+        return {
+          items: items.filter(function(item) {
+            return item.parents[0].id === parentId && item.mimeType !== "application/vnd.google-apps.folder";
+          }),
+        };
+      },
+      getFile(fileId) {
+        const file = items.find(function(item) {
+          return item.id === fileId;
+        });
+        return {
+          parents: file.parents.map(function(parent) {
+            return parent.id;
+          }),
+        };
+      },
+      patchFile(patchData, fileId, params) {
+        const file = items.find(function(item) {
+          return item.id === fileId;
+        });
+        file.parents = [{ id: params.addParents }];
+      },
+      insertFolder(resource) {
+        return createFolderItem(`new-${resource.parents[0].id}-${resource.title}`, resource.title, resource.parents[0].id);
+      },
+      globals: {
+        ensureArchiveFolderByPath_() {
+          return { id: "new-folder", title: "領収書", path: "東京電力/領収書" };
+        },
+        logError_() {},
+        Logger: {
+          log() {
+            throw new Error("log write failed");
+          },
+        },
+      },
+    });
+
+    expect(function() {
+      migration.context.migrateArchiveFolderStructure();
+    }).toThrow("log write failed");
+    expect(migration.updatedProperties.lastMigratedDocumentType).toBe("領収書");
+    expect(migration.deletedProperties).not.toContain("lastMigratedDocumentType");
   });
 });

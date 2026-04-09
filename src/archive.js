@@ -42,6 +42,25 @@ function reverseArchivePathSegments_(path) {
   return [second, first].concat(rest).join("/");
 }
 
+function moveDriveFileToFolder_(fileId, folderId) {
+  var file = Drive.Files.get(fileId, {
+    fields: "parents",
+    supportsAllDrives: true,
+  });
+  var previousParents = String((file.parents || []).join(","));
+
+  Drive.Files.patch(
+    {},
+    fileId,
+    {
+      addParents: folderId,
+      removeParents: previousParents,
+      fields: "id,parents",
+      supportsAllDrives: true,
+    },
+  );
+}
+
 function migrateArchiveFolderStructure() {
   var config = getConfig_();
   var archiveRootFolderId = requireArchiveRootFolderId_(config);
@@ -72,11 +91,7 @@ function migrateArchiveFolderStructure() {
         try {
           var newPath = issuerFolder.title + "/" + docTypeFolder.title;
           var targetFolder = ensureArchiveFolderByPath_(archiveRootFolderId, newPath);
-          Drive.Files.patch(
-            { parents: [{ id: targetFolder.id }] },
-            file.id,
-            { supportsAllDrives: true },
-          );
+          moveDriveFileToFolder_(file.id, targetFolder.id);
           counts.movedFiles += 1;
         } catch (error) {
           counts.failedFiles += 1;
@@ -111,8 +126,6 @@ function migrateArchiveFolderStructure() {
     migrateArchivePathsInLog_(config);
   }
 
-  propertiesService.deleteProperty("lastMigratedDocumentType");
-
   var summary = {
     movedFiles: counts.movedFiles,
     failedFiles: counts.failedFiles,
@@ -123,6 +136,8 @@ function migrateArchiveFolderStructure() {
   };
 
   logInfo_("Archive folder migration completed.", summary);
+
+  propertiesService.deleteProperty("lastMigratedDocumentType");
 
   return summary;
 }
