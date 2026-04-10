@@ -235,6 +235,37 @@ describe("listFilesInFolder_", () => {
   });
 });
 
+describe("moveDriveFileToFolder_", () => {
+  test("uses parent reference ids when Drive returns parent objects", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js", "src/archive.js"],
+      globals: {
+        Drive: {
+          Files: {
+            get() {
+              return {
+                parents: [
+                  { id: "old-parent-id", isRoot: false },
+                ],
+              };
+            },
+            patch(patchData, fileId, params) {
+              expect(patchData).toEqual({});
+              expect(fileId).toBe("file-1");
+              expect(params.addParents).toBe("new-parent-id");
+              expect(params.removeParents).toBe("old-parent-id");
+              expect(params.supportsAllDrives).toBe(true);
+              return { id: fileId };
+            },
+          },
+        },
+      },
+    });
+
+    context.moveDriveFileToFolder_("file-1", "new-parent-id");
+  });
+});
+
 describe("migrateArchiveFolderStructure", () => {
   test("moves files from old structure to new structure and cleans up", () => {
     const invoiceFolderId = "folder-invoice";

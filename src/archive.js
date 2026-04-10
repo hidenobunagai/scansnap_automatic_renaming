@@ -47,7 +47,16 @@ function moveDriveFileToFolder_(fileId, folderId) {
     fields: "parents",
     supportsAllDrives: true,
   });
-  var previousParents = String((file.parents || []).join(","));
+  var previousParents = (file.parents || [])
+    .map(function(parent) {
+      if (typeof parent === "string") {
+        return parent;
+      }
+
+      return parent && parent.id ? String(parent.id) : "";
+    })
+    .filter(Boolean)
+    .join(",");
 
   Drive.Files.patch(
     {},
