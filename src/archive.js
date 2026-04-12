@@ -199,6 +199,7 @@ function normalizeArchiveIssuerNames() {
 
     var normalizedIssuer = normalizeIssuerText_(issuerFolder.title);
     var destinationFolder = issuerFolder;
+    var issuerHadFailure = false;
 
     if (normalizedIssuer && normalizedIssuer !== issuerFolder.title) {
       var existingFolder = findChildFolder_(archiveRootFolderId, normalizedIssuer);
@@ -238,6 +239,7 @@ function normalizeArchiveIssuerNames() {
             counts.renamedFiles += 1;
           }
         } catch (error) {
+          issuerHadFailure = true;
           counts.failedItems += 1;
           errors.push({
             source: "file:" + file.id,
@@ -261,8 +263,10 @@ function normalizeArchiveIssuerNames() {
       }
     }
 
-    counts.updatedLogRows += normalizeIssuerRowsInLog_(issuerFolder.title, destinationFolder.title, config);
-    propertiesService.setProperty("lastNormalizedIssuerFolder", issuerFolder.title);
+    if (!issuerHadFailure) {
+      counts.updatedLogRows += normalizeIssuerRowsInLog_(issuerFolder.title, destinationFolder.title, config);
+      propertiesService.setProperty("lastNormalizedIssuerFolder", issuerFolder.title);
+    }
   });
 
   var summary = {

@@ -446,6 +446,92 @@ describe("normalizeArchiveIssuerNames", () => {
     expect(logValues[1][14]).toBe("2026-04-10_パークホームズLaLa新三郷管理組合_請求書_4月分.pdf");
   });
 
+  test("does not update log rows or checkpoint when an issuer has a file operation failure", () => {
+    const sourceFolder = createFolderItem("issuer-source", "パークホームズＬａＬａ新三郷管理組合", "archive-root");
+    const docTypeFolder = createFolderItem("doc-invoice", "請求書", sourceFolder.id);
+    const file = createFileItem("file-1", "2026-04-10_パークホームズＬａＬａ新三郷管理組合_請求書_4月分.pdf", docTypeFolder.id);
+    const logValues = [[
+      ...LOG_HEADERS,
+    ], [
+      "2026-04-10T00:00:00Z",
+      "file-1",
+      "renamed",
+      "scan.pdf",
+      "2026-04-10_パークホームズＬａＬａ新三郷管理組合_請求書_4月分.pdf",
+      "2026-04-10_パークホームズＬａＬａ新三郷管理組合_請求書_4月分.pdf",
+      0.99,
+      "2026-04-10",
+      "パークホームズＬａＬａ新三郷管理組合",
+      "請求書",
+      "4月分",
+      "summary",
+      "",
+      "パークホームズＬａＬａ新三郷管理組合/請求書",
+      "2026-04-10_パークホームズＬａＬａ新三郷管理組合_請求書_4月分.pdf",
+      "archived-file-id",
+    ]];
+    const originalLogValues = logValues.map(function(row) {
+      return row.slice();
+    });
+    const setValuesCalls = [];
+
+    const { context, updatedProperties } = createNormalizationContext({
+      listFolders(params, query) {
+        const parentId = query.match(/'([^']+)' in parents/)[1];
+        const titleMatch = query.match(/title = '([^']+)'/);
+        return {
+          items: [sourceFolder, docTypeFolder].filter(function(item) {
+            if (item.parents[0].id !== parentId || item.mimeType !== "application/vnd.google-apps.folder") {
+              return false;
+            }
+
+            if (titleMatch) {
+              return item.title === titleMatch[1];
+            }
+
+            return true;
+          }),
+        };
+      },
+      listFiles(params, query) {
+        const parentId = query.match(/'([^']+)' in parents/)[1];
+        return {
+          items: parentId === docTypeFolder.id ? [file] : [],
+        };
+      },
+      getFile() {
+        return { parents: [docTypeFolder.id] };
+      },
+      patchFile(patchData, fileId, params) {
+        if (fileId === "file-1" && params && Object.prototype.hasOwnProperty.call(params, "addParents")) {
+          throw new Error("move failed");
+        }
+
+        return { id: fileId, title: patchData.title || "" };
+      },
+      logSheet: createLogSheet(logValues, setValuesCalls),
+      insertFolder(resource) {
+        return {
+          id: resource.parents[0].id === "archive-root" ? "normalized-issuer-folder" : "normalized-doc-folder",
+          title: resource.title,
+        };
+      },
+      globals: {
+        findOrCreateChildFolder_(parentId, name) {
+          return { id: parentId === "archive-root" ? "normalized-issuer-folder" : "normalized-doc-folder", title: name };
+        },
+      },
+    });
+
+    const result = context.normalizeArchiveIssuerNames();
+
+    expect(result.failedItems).toBe(1);
+    expect(result.updatedLogRows).toBe(0);
+    expect(setValuesCalls).toHaveLength(0);
+    expect(logValues).toEqual(originalLogValues);
+    expect(updatedProperties.lastNormalizedIssuerFolder).toBeUndefined();
+  });
+
   test("resumes after lastNormalizedIssuerFolder checkpoint", () => {
     const folderA = createFolderItem("issuer-a", "A", "archive-root");
     const folderB = createFolderItem("issuer-b", "B", "archive-root");
