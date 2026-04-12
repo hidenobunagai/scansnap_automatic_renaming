@@ -47,6 +47,217 @@ function normalizeIssuerText_(value) {
   }));
 }
 
+const WEAK_ISSUER_LABELS_ = [
+  "案内",
+  "おたより",
+  "学級だより",
+  "チェックリスト",
+  "申込書",
+  "連絡",
+  "学校",
+  "幼稚園",
+  "保護者",
+];
+
+const ORGANIZATION_MARKERS_ = [
+  "小学校",
+  "中学校",
+  "高等学校",
+  "幼稚園",
+  "保育園",
+  "こども園",
+  "児童クラブ",
+  "学童",
+  "市役所",
+  "区役所",
+  "役場",
+  "水道部",
+  "教育委員会",
+  "管理組合",
+  "株式会社",
+  "有限会社",
+  "合同会社",
+  "法人",
+  "協会",
+  "組合",
+  "センター",
+  "病院",
+  "クリニック",
+];
+
+const ORGANIZATION_TRAILING_SUFFIX_PATTERNS_ = [
+  /定例会資料$/,
+  /請求書$/,
+  /納品書$/,
+  /おたより$/,
+  /案内$/,
+  /[0-9０-９]{1,2}月号$/,
+];
+
+const ORGANIZATION_LEADING_LABELS_ = [
+  "差出人",
+  "発行者",
+  "送付元",
+  "発信元",
+  "宛先",
+];
+
+function isWeakIssuerLabel_(value) {
+  var text = collapseWhitespace_(value);
+
+  if (!text) {
+    return true;
+  }
+
+  if (WEAK_ISSUER_LABELS_.indexOf(text) !== -1) {
+    return true;
+  }
+
+  return false;
+}
+
+function trimOrganizationCandidateSuffix_(value) {
+  var candidate = collapseWhitespace_(value);
+  var markerEnd = -1;
+
+  ORGANIZATION_MARKERS_.forEach(function(marker) {
+    var markerIndex = candidate.lastIndexOf(marker);
+
+    if (markerIndex === -1) {
+      return;
+    }
+
+    markerEnd = Math.max(markerEnd, markerIndex + marker.length);
+  });
+
+  if (markerEnd === -1 || markerEnd >= candidate.length) {
+    return candidate;
+  }
+
+  var trimmed = candidate;
+  var changed = true;
+
+  while (changed) {
+    changed = false;
+
+    ORGANIZATION_TRAILING_SUFFIX_PATTERNS_.some(function(pattern) {
+      var next = trimmed.replace(pattern, "");
+
+      if (next === trimmed || next.length < markerEnd) {
+        return false;
+      }
+
+      trimmed = next;
+      changed = true;
+      return true;
+    });
+  }
+
+  return collapseWhitespace_(trimmed);
+}
+
+function trimOrganizationCandidatePrefix_(value) {
+  var candidate = collapseWhitespace_(value);
+  var trimmed = candidate;
+  var changed = true;
+
+  while (changed) {
+    changed = false;
+
+    ORGANIZATION_LEADING_LABELS_.some(function(label) {
+      var pattern = new RegExp("^" + label + "\\s+");
+      var next = trimmed.replace(pattern, "");
+
+      if (next === trimmed) {
+        return false;
+      }
+
+      trimmed = next;
+      changed = true;
+      return true;
+    });
+  }
+
+  return trimmed;
+}
+
+function trimOrganizationCandidateStart_(value) {
+  var candidate = collapseWhitespace_(value);
+  var markerIndex = -1;
+  var marker = "";
+  var allowedLeadingCharacterPattern = /[A-Z0-9\u30A0-\u30FF\u3400-\u9FFF々ー・()（）.&'\-\uFF10-\uFF19\uFF21-\uFF3A\uFF41-\uFF5A\s]/i;
+  var start = -1;
+  var cursor;
+
+  ORGANIZATION_MARKERS_.forEach(function(currentMarker) {
+    var index = candidate.indexOf(currentMarker);
+
+    if (index === -1) {
+      return;
+    }
+
+    if (markerIndex === -1 || index < markerIndex) {
+      markerIndex = index;
+      marker = currentMarker;
+    }
+  });
+
+  if (markerIndex === -1) {
+    return candidate;
+  }
+
+  if (marker === "株式会社" || marker === "有限会社" || marker === "合同会社") {
+    return candidate.slice(markerIndex);
+  }
+
+  start = markerIndex;
+  cursor = markerIndex - 1;
+
+  while (cursor >= 0 && allowedLeadingCharacterPattern.test(candidate.charAt(cursor))) {
+    start = cursor;
+    cursor -= 1;
+  }
+
+  while (start < markerIndex && /\s/.test(candidate.charAt(start))) {
+    start += 1;
+  }
+
+  return collapseWhitespace_(candidate.slice(start));
+}
+
+function extractOrganizationCandidates_(value) {
+  var text = collapseWhitespace_(value);
+  var candidates = [];
+  var markerPattern = ORGANIZATION_MARKERS_
+    .slice()
+    .sort(function(a, b) {
+      return b.length - a.length;
+    })
+    .join("|");
+  var boundaryPattern = "(?:$|[\\s　、。()（）]|から|より|の|は|が|を|に|へ|と|で)";
+  var candidatePattern = "[^、。()（）]{0,20}?(?:" + markerPattern + ")[^、。()（）]{0,20}?";
+  var pattern = new RegExp(
+    "(?:^|[\\s　、。()（）]|から|より|の|は|が|を|に|へ|と|で)(" +
+      candidatePattern +
+      ")" +
+      "(?=" +
+      boundaryPattern +
+      ")",
+    "g",
+  );
+  var match;
+
+  while ((match = pattern.exec(text)) !== null) {
+    candidates.push(
+      trimOrganizationCandidatePrefix_(
+        trimOrganizationCandidateStart_(trimOrganizationCandidateSuffix_(match[1])),
+      ),
+    );
+  }
+
+  return dedupeOrderedParts_(candidates);
+}
+
 function dedupeOrderedParts_(parts) {
   const seen = {};
   const deduped = [];

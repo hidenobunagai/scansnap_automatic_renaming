@@ -94,6 +94,126 @@ function updateIssuerFieldsInLogRow_(row, oldIssuer, normalizedIssuer) {
   }
 }
 
+function inferCorrectedIssuerForArchiveFolder_(issuerFolderName, signals) {
+  var currentIssuer = normalizeIssuerText_(issuerFolderName);
+
+  if (!isWeakIssuerLabel_(currentIssuer)) {
+    return currentIssuer;
+  }
+
+  var candidates = dedupeOrderedParts_(
+    extractOrganizationCandidates_(signals.text || "")
+      .concat(extractOrganizationCandidates_(signals.subject || ""))
+      .concat(extractOrganizationCandidates_(signals.summary || ""))
+      .concat(extractOrganizationCandidates_(signals.fileNames || "")),
+  ).map(function(candidate) {
+    return normalizeIssuerText_(stripPdfExtension_(candidate));
+  });
+  var strongCandidates = [];
+
+  for (var i = 0; i < candidates.length; i++) {
+    if (!isWeakIssuerLabel_(candidates[i])) {
+      strongCandidates.push(candidates[i]);
+    }
+  }
+
+  strongCandidates = dedupeOrderedParts_(strongCandidates);
+
+  return strongCandidates.length === 1 ? strongCandidates[0] : "";
+}
+
+function buildArchiveCorrectionSignals_(logRows, fileNames) {
+  return {
+    text: logRows.map(function(row) {
+      return [row[LOG_HEADER_INDEX_.issuer], row[LOG_HEADER_INDEX_.subject], row[LOG_HEADER_INDEX_.summary]].join(" ");
+    }).join(" "),
+    subject: logRows.map(function(row) {
+      return row[LOG_HEADER_INDEX_.subject] || "";
+    }).join(" "),
+    summary: logRows.map(function(row) {
+      return row[LOG_HEADER_INDEX_.summary] || "";
+    }).join(" "),
+    fileNames: fileNames.join(" "),
+  };
+}
+
+function buildArchiveLogFileNameLookup_(archiveFileNames) {
+  var lookup = {};
+
+  (archiveFileNames || []).forEach(function(fileName) {
+    var normalized = String(fileName || "");
+
+    if (!normalized) {
+      return;
+    }
+
+    lookup[normalized] = true;
+  });
+
+  return lookup;
+}
+
+function getIssuerLogRows_(issuerFolderName, archiveFileNames, config) {
+  var logState = getLogState_(config);
+  var sheet = logState.sheet;
+  var lastRow = sheet.getLastRow();
+  var archiveFileNameLookup = buildArchiveLogFileNameLookup_(archiveFileNames);
+
+  if (lastRow < 2) {
+    return [];
+  }
+
+  return sheet.getRange(2, 1, lastRow - 1, LOG_HEADERS_.length).getValues().filter(function(row) {
+    if (String(row[LOG_HEADER_INDEX_.issuer] || "") !== issuerFolderName) {
+      return false;
+    }
+
+    if (!archiveFileNames || !archiveFileNames.length) {
+      return true;
+    }
+
+    return Boolean(archiveFileNameLookup[String(row[LOG_HEADER_INDEX_.archiveFinalName] || "")]);
+  });
+}
+
+function correctIssuerRowsInLog_(oldIssuer, correctedIssuer, archiveFileNames, config) {
+  if (!oldIssuer || !correctedIssuer || oldIssuer === correctedIssuer) {
+    return 0;
+  }
+
+  var logState = getLogState_(config);
+  var sheet = logState.sheet;
+  var lastRow = sheet.getLastRow();
+  var archiveFileNameLookup = buildArchiveLogFileNameLookup_(archiveFileNames);
+
+  if (lastRow < 2) {
+    return 0;
+  }
+
+  var range = sheet.getRange(2, 1, lastRow - 1, LOG_HEADERS_.length);
+  var values = range.getValues();
+  var updated = 0;
+
+  for (var i = 0; i < values.length; i++) {
+    if (String(values[i][LOG_HEADER_INDEX_.issuer] || "") !== oldIssuer) {
+      continue;
+    }
+
+    if (archiveFileNames && archiveFileNames.length && !archiveFileNameLookup[String(values[i][LOG_HEADER_INDEX_.archiveFinalName] || "")]) {
+      continue;
+    }
+
+    updateIssuerFieldsInLogRow_(values[i], oldIssuer, correctedIssuer);
+    updated += 1;
+  }
+
+  if (updated) {
+    range.setValues(values);
+  }
+
+  return updated;
+}
+
 function migrateArchiveFolderStructure() {
   var config = getConfig_();
   var archiveRootFolderId = requireArchiveRootFolderId_(config);
@@ -289,6 +409,124 @@ function normalizeArchiveIssuerNames() {
 
   logInfo_("Archive issuer normalization completed.", summary);
   propertiesService.deleteProperty("lastNormalizedIssuerFolder");
+  return summary;
+}
+
+function correctArchiveIssuerFolders() {
+  var config = getConfig_();
+  var archiveRootFolderId = requireArchiveRootFolderId_(config);
+  var propertiesService = getScriptProperties_();
+  var lastCorrected = propertiesService.getProperty("lastCorrectedIssuerFolder") || "";
+  var issuerFolders = listDirectChildFolders_(archiveRootFolderId);
+  var counts = {
+    correctedFolders: 0,
+    mergedFolders: 0,
+    renamedFiles: 0,
+    updatedLogRows: 0,
+    skippedFolders: 0,
+    failedItems: 0,
+  };
+  var errors = [];
+
+  issuerFolders.forEach(function(issuerFolder) {
+    if (lastCorrected && issuerFolder.title <= lastCorrected) {
+      counts.skippedFolders += 1;
+      return;
+    }
+
+    try {
+      var documentTypeFolders = listDirectChildFolders_(issuerFolder.id);
+      var fileNames = [];
+      var issuerHadFailure = false;
+
+      documentTypeFolders.forEach(function(documentTypeFolder) {
+        listFilesInFolder_(documentTypeFolder.id).forEach(function(file) {
+          fileNames.push(file.title);
+        });
+      });
+
+      var logRows = getIssuerLogRows_(issuerFolder.title, fileNames, config);
+
+      var correctedIssuer = inferCorrectedIssuerForArchiveFolder_(
+        issuerFolder.title,
+        buildArchiveCorrectionSignals_(logRows, fileNames),
+      );
+
+      if (!correctedIssuer || correctedIssuer === issuerFolder.title) {
+        counts.skippedFolders += 1;
+        return;
+      }
+
+      var existingDestination = findChildFolder_(archiveRootFolderId, correctedIssuer);
+      var destinationFolder = existingDestination || ensureArchiveFolderByPath_(archiveRootFolderId, correctedIssuer);
+
+      if (existingDestination && existingDestination.id !== issuerFolder.id) {
+        counts.mergedFolders += 1;
+      }
+
+      documentTypeFolders.forEach(function(documentTypeFolder) {
+        var destinationDocumentTypeFolder = ensureArchiveFolderByPath_(
+          archiveRootFolderId,
+          correctedIssuer + "/" + documentTypeFolder.title,
+        );
+
+        listFilesInFolder_(documentTypeFolder.id).forEach(function(file) {
+          try {
+            var nextFileName = buildNormalizedArchiveFileName_(file.title, issuerFolder.title, correctedIssuer);
+
+            if (nextFileName !== file.title) {
+              Drive.Files.patch({ title: nextFileName }, file.id, { supportsAllDrives: true });
+              counts.renamedFiles += 1;
+            }
+
+            moveDriveFileToFolder_(file.id, destinationDocumentTypeFolder.id);
+          } catch (error) {
+            issuerHadFailure = true;
+            counts.failedItems += 1;
+            errors.push({
+              source: "file:" + file.id,
+              message: getErrorMessage_(error),
+            });
+          }
+        });
+
+        try {
+          deleteEmptyFolder_(documentTypeFolder.id);
+        } catch (ignore) {}
+      });
+
+      if (destinationFolder.id !== issuerFolder.id) {
+        try {
+          deleteEmptyFolder_(issuerFolder.id);
+        } catch (ignore) {}
+      }
+
+      if (!issuerHadFailure) {
+        counts.updatedLogRows += correctIssuerRowsInLog_(issuerFolder.title, correctedIssuer, fileNames, config);
+        counts.correctedFolders += 1;
+        propertiesService.setProperty("lastCorrectedIssuerFolder", issuerFolder.title);
+      }
+    } catch (error) {
+      counts.failedItems += 1;
+      errors.push({
+        source: "issuer:" + issuerFolder.id,
+        message: getErrorMessage_(error),
+      });
+    }
+  });
+
+  var summary = {
+    correctedFolders: counts.correctedFolders,
+    mergedFolders: counts.mergedFolders,
+    renamedFiles: counts.renamedFiles,
+    updatedLogRows: counts.updatedLogRows,
+    skippedFolders: counts.skippedFolders,
+    failedItems: counts.failedItems,
+    errors: errors,
+  };
+
+  logInfo_("Archive issuer correction completed.", summary);
+  propertiesService.deleteProperty("lastCorrectedIssuerFolder");
   return summary;
 }
 

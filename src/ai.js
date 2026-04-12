@@ -5,7 +5,7 @@ function requestRenameSuggestion_(extractedText, fileMeta, config) {
       ? callGeminiForRename_(prompt, config)
       : callOpenAiForRename_(prompt, config);
 
-  return normalizeAiSuggestion_(payload, fileMeta, config);
+  return normalizeAiSuggestion_(payload, fileMeta, config, extractedText);
 }
 
 function buildAiPrompt_(extractedText, fileMeta, config) {
@@ -128,7 +128,26 @@ function parseJsonObjectResponse_(content) {
   return JSON.parse(text.slice(start, end + 1));
 }
 
-function normalizeAiSuggestion_(payload, fileMeta, config) {
+function correctIssuerSuggestion_(payload, extractedText) {
+  var issuer = normalizeIssuerText_(payload.issuer);
+
+  if (!isWeakIssuerLabel_(issuer)) {
+    return issuer;
+  }
+
+  var candidates = dedupeOrderedParts_(
+    extractOrganizationCandidates_(extractedText || "")
+      .concat(extractOrganizationCandidates_(payload.subject || ""))
+      .concat(extractOrganizationCandidates_(payload.summary || ""))
+      .map(function(candidate) {
+        return normalizeIssuerText_(candidate);
+      }),
+  );
+
+  return candidates[0] || issuer;
+}
+
+function normalizeAiSuggestion_(payload, fileMeta, config, extractedText) {
   const fallbackDate = formatDate_(fileMeta.createdAt, config.timezone);
   const fallbackSubject = truncateFileSegment_(stripPdfExtension_(fileMeta.name), config.maxSubjectLength);
   const subject = truncateFileSegment_(
@@ -138,7 +157,7 @@ function normalizeAiSuggestion_(payload, fileMeta, config) {
 
   return {
     documentDate: normalizeIsoDate_(payload.documentDate) || fallbackDate,
-    issuer: truncateFileSegment_(normalizeIssuerText_(payload.issuer), config.maxIssuerLength),
+    issuer: truncateFileSegment_(correctIssuerSuggestion_(payload, extractedText), config.maxIssuerLength),
     documentType: truncateFileSegment_(payload.documentType, config.maxDocumentTypeLength),
     subject: subject || fallbackSubject || "scan",
     summary: truncateText_(collapseWhitespace_(payload.summary || payload.subject || ""), 120),
