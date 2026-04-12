@@ -2,12 +2,12 @@ import { describe, expect, test } from "bun:test";
 import { createAppsScriptContext } from "./helpers/apps-script-context.mjs";
 
 describe("isWeakIssuerLabel_", () => {
-  test("treats personal-name-like hiragana as weak", () => {
+  test("treats empty issuer as weak", () => {
     const context = createAppsScriptContext({
       files: ["src/utils.js"],
     });
 
-    expect(context.isWeakIssuerLabel_("ながいげんた")).toBe(true);
+    expect(context.isWeakIssuerLabel_("")).toBe(true);
   });
 
   test("treats generic document labels as weak", () => {
@@ -24,6 +24,7 @@ describe("isWeakIssuerLabel_", () => {
       files: ["src/utils.js"],
     });
 
+    expect(context.isWeakIssuerLabel_("ながいげんた")).toBe(false);
     expect(context.isWeakIssuerLabel_("桜小学校")).toBe(false);
     expect(context.isWeakIssuerLabel_("三郷市水道部業務課")).toBe(false);
   });
@@ -47,6 +48,18 @@ describe("extractOrganizationCandidates_", () => {
       ),
     ).toContain("株式会社サンプル");
   });
+
+  test("keeps candidates in document order", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js"],
+    });
+
+    expect(
+      context.extractOrganizationCandidates_(
+        "青葉市役所のお知らせです。後日、桜小学校から配布します。",
+      ),
+    ).toEqual(["青葉市役所", "桜小学校"]);
+  });
 });
 
 describe("correctIssuerSuggestion_", () => {
@@ -57,15 +70,51 @@ describe("correctIssuerSuggestion_", () => {
 
     const corrected = context.correctIssuerSuggestion_(
       {
-        issuer: "ながいげんた",
+        issuer: "学級だより",
         documentType: "おたより",
         subject: "4月のおたより",
         summary: "桜小学校からのおたより",
       },
-      "桜小学校 学級だより 4月号 ながいげんた",
+      "桜小学校 学級だより 4月号",
     );
 
     expect(corrected).toBe("桜小学校");
+  });
+
+  test("keeps a legitimate kana issuer even when OCR contains an organization", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js", "src/ai.js"],
+    });
+
+    const corrected = context.correctIssuerSuggestion_(
+      {
+        issuer: "ながいげんた",
+        documentType: "おたより",
+        subject: "4月のおたより",
+        summary: "連絡事項",
+      },
+      "桜小学校 学級だより 4月号 ながいげんた",
+    );
+
+    expect(corrected).toBe("ながいげんた");
+  });
+
+  test("chooses the earliest organization candidate in OCR text", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js", "src/ai.js"],
+    });
+
+    const corrected = context.correctIssuerSuggestion_(
+      {
+        issuer: "案内",
+        documentType: "通知",
+        subject: "確認事項",
+        summary: "青葉市役所と桜小学校のご案内",
+      },
+      "青葉市役所からのお知らせです。後日、桜小学校からも配布します。",
+    );
+
+    expect(corrected).toBe("青葉市役所");
   });
 
   test("keeps current issuer when no stronger evidence exists", () => {

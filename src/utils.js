@@ -96,21 +96,33 @@ function isWeakIssuerLabel_(value) {
     return true;
   }
 
-  return /^[ぁ-んァ-ヶー]{2,10}$/.test(text);
+  return false;
 }
 
 function extractOrganizationCandidates_(value) {
   var text = collapseWhitespace_(value);
   var candidates = [];
+  var markerPattern = ORGANIZATION_MARKERS_
+    .slice()
+    .sort(function(a, b) {
+      return b.length - a.length;
+    })
+    .join("|");
+  var boundaryPattern = "(?:$|[\\s　、。()（）]|から|より|の|は|が|を|に|へ|と|で)";
+  var pattern = new RegExp(
+    "(?:^|[\\s　、。()（）]|から|より|の|は|が|を|に|へ|と|で)([^\\s　、。()（）]{0,20}?(?:" +
+      markerPattern +
+      ")[^\\s　、。()（）]{0,20}?)" +
+      "(?=" +
+      boundaryPattern +
+      ")",
+    "g",
+  );
+  var match;
 
-  ORGANIZATION_MARKERS_.forEach(function(marker) {
-    var pattern = new RegExp("[^\\s　、。()（）]{0,20}" + marker + "[^\\s　、。()（）]{0,20}", "g");
-    var matches = text.match(pattern) || [];
-
-    matches.forEach(function(match) {
-      candidates.push(collapseWhitespace_(match));
-    });
-  });
+  while ((match = pattern.exec(text)) !== null) {
+    candidates.push(collapseWhitespace_(match[1]));
+  }
 
   return dedupeOrderedParts_(candidates);
 }
