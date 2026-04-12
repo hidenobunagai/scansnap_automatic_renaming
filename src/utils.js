@@ -47,6 +47,74 @@ function normalizeIssuerText_(value) {
   }));
 }
 
+const WEAK_ISSUER_LABELS_ = [
+  "案内",
+  "おたより",
+  "学級だより",
+  "チェックリスト",
+  "申込書",
+  "連絡",
+  "学校",
+  "幼稚園",
+  "保護者",
+];
+
+const ORGANIZATION_MARKERS_ = [
+  "小学校",
+  "中学校",
+  "高等学校",
+  "幼稚園",
+  "保育園",
+  "こども園",
+  "児童クラブ",
+  "学童",
+  "市役所",
+  "区役所",
+  "役場",
+  "水道部",
+  "教育委員会",
+  "管理組合",
+  "株式会社",
+  "有限会社",
+  "合同会社",
+  "法人",
+  "協会",
+  "組合",
+  "センター",
+  "病院",
+  "クリニック",
+];
+
+function isWeakIssuerLabel_(value) {
+  var text = collapseWhitespace_(value);
+
+  if (!text) {
+    return true;
+  }
+
+  if (WEAK_ISSUER_LABELS_.indexOf(text) !== -1) {
+    return true;
+  }
+
+  return /^[ぁ-んァ-ヶー]{2,10}$/.test(text);
+}
+
+function extractOrganizationCandidates_(value) {
+  var text = collapseWhitespace_(value);
+  var candidates = [];
+
+  ORGANIZATION_MARKERS_.forEach(function(marker) {
+    var pattern = new RegExp("[^\\s　、。()（）]{0,20}" + marker + "[^\\s　、。()（）]{0,20}", "g");
+    var matches = text.match(pattern) || [];
+
+    matches.forEach(function(match) {
+      candidates.push(collapseWhitespace_(match));
+    });
+  });
+
+  return dedupeOrderedParts_(candidates);
+}
+
 function dedupeOrderedParts_(parts) {
   const seen = {};
   const deduped = [];
