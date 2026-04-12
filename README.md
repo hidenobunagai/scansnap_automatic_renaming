@@ -10,7 +10,7 @@ Google Drive 上の ScanSnap PDF を定期的に見に行き、OCR と AI で分
 - Google Drive OCR でテキスト抽出
 - Gemini または OpenAI に命名候補を生成させる
 - `YYYY-MM-DD_発行元_書類種別_要点.pdf` 形式へ整形
-- `発行元/書類種別` のフォルダ構成で家族共有フォルダへコピー
+- `発行元(半角英数字へ正規化)/書類種別` のフォルダ構成で家族共有フォルダへコピー
 - 重複ファイル名は `_2`, `_3` を付けて回避
 - 結果をスプレッドシートへ記録
 - `review` と `rename` の 2 モードに対応
@@ -96,7 +96,8 @@ bun run setup:remote
 - `runScanRenameJob()`: 未処理 PDF を走査して review / rename を実行
 - `installScanRenameTrigger()`: 定期実行 trigger を再作成
 - `removeScanRenameTriggers()`: 既存 trigger を削除
-- `migrateArchiveFolderStructure()`: 既存のアーカイブフォルダを旧構成（書類種別/発行元）から新構成（発行元/書類種別）へ移行
+- `migrateArchiveFolderStructure()`: 既存のアーカイブフォルダを旧構成（書類種別/発行元）から新構成（発行元(半角英数字へ正規化)/書類種別）へ移行
+- `normalizeArchiveIssuerNames()`: 既存の発行元フォルダ名、アーカイブ済みファイル名、ログの issuer 関連項目を半角英数字へ正規化
 - `getScriptPropertiesTemplate()`: 設定キーのひな形を返す
 
 ## Notes
