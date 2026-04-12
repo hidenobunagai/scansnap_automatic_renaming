@@ -639,4 +639,162 @@ describe("correctArchiveIssuerFolders", () => {
     expect(setValuesCalls).toHaveLength(0);
     expect(updatedProperties.lastCorrectedIssuerFolder).toBeUndefined();
   });
+
+  test("skips issuer folder when strong candidates conflict", () => {
+    const sourceFolder = createFolderItem("issuer-weak", "案内", "archive-root");
+    const docTypeFolder = createFolderItem("doc-notice", "通知", sourceFolder.id);
+    const schoolFile = createFileItem("file-1", "2026-04-10_案内_通知_桜小学校.pdf", docTypeFolder.id);
+    const cityFile = createFileItem("file-2", "2026-04-10_案内_通知_三郷市役所.pdf", docTypeFolder.id);
+    const setValuesCalls = [];
+
+    const { context, movedFiles, patchedFiles, updatedProperties } = createCorrectionContext({
+      listFolders(params, query) {
+        const parentId = query.match(/'([^']+)' in parents/)[1];
+        return {
+          items: [sourceFolder, docTypeFolder].filter(function(item) {
+            return item.mimeType === "application/vnd.google-apps.folder" && item.parents[0].id === parentId;
+          }),
+        };
+      },
+      listFiles(params, query) {
+        const parentId = query.match(/'([^']+)' in parents/)[1];
+        if (params.maxResults === 1) {
+          return { items: [] };
+        }
+        return { items: parentId === docTypeFolder.id ? [schoolFile, cityFile] : [] };
+      },
+      getFile() {
+        return { parents: [docTypeFolder.id] };
+      },
+      logSheet: createLogSheet([[...LOG_HEADERS]], setValuesCalls),
+    });
+
+    const result = context.correctArchiveIssuerFolders();
+
+    expect(result.correctedFolders).toBe(0);
+    expect(result.skippedFolders).toBe(1);
+    expect(result.failedItems).toBe(0);
+    expect(movedFiles).toHaveLength(0);
+    expect(patchedFiles).toHaveLength(0);
+    expect(setValuesCalls).toHaveLength(0);
+    expect(updatedProperties.lastCorrectedIssuerFolder).toBeUndefined();
+  });
+
+  test("continues after file-level correction failure without updating checkpoint", () => {
+    const sourceFolder = createFolderItem("issuer-weak", "学級だより", "archive-root");
+    const docTypeFolder = createFolderItem("doc-notice", "通知", sourceFolder.id);
+    const failedFile = createFileItem("file-failed", "2026-04-10_学級だより_通知_4月号.pdf", docTypeFolder.id);
+    const successfulFile = createFileItem("file-success", "2026-04-11_学級だより_通知_5月号.pdf", docTypeFolder.id);
+    const logValues = [[...LOG_HEADERS], [
+      "2026-04-10T00:00:00Z",
+      "file-failed",
+      "renamed",
+      "scan1.pdf",
+      "2026-04-10_学級だより_通知_4月号.pdf",
+      "2026-04-10_学級だより_通知_4月号.pdf",
+      0.99,
+      "2026-04-10",
+      "学級だより",
+      "通知",
+      "学校からのお知らせ",
+      "桜小学校の通知です",
+      "",
+      "学級だより/通知",
+      "2026-04-10_学級だより_通知_4月号.pdf",
+      "archived-file-id-1",
+    ], [
+      "2026-04-11T00:00:00Z",
+      "file-success",
+      "renamed",
+      "scan2.pdf",
+      "2026-04-11_学級だより_通知_5月号.pdf",
+      "2026-04-11_学級だより_通知_5月号.pdf",
+      0.99,
+      "2026-04-11",
+      "学級だより",
+      "通知",
+      "学校からのお知らせ",
+      "桜小学校の通知です",
+      "",
+      "学級だより/通知",
+      "2026-04-11_学級だより_通知_5月号.pdf",
+      "archived-file-id-2",
+    ]];
+    const setValuesCalls = [];
+
+    const { context, movedFiles, patchedFiles, updatedProperties } = createCorrectionContext({
+      listFolders(params, query) {
+        const parentId = query.match(/'([^']+)' in parents/)[1];
+        const titleMatch = query.match(/title = '([^']+)'/);
+        return {
+          items: [sourceFolder, docTypeFolder].filter(function(item) {
+            if (item.mimeType !== "application/vnd.google-apps.folder" || item.parents[0].id !== parentId) {
+              return false;
+            }
+
+            if (titleMatch) {
+              return item.title === titleMatch[1];
+            }
+
+            return true;
+          }),
+        };
+      },
+      listFiles(params, query) {
+        const parentId = query.match(/'([^']+)' in parents/)[1];
+        if (params.maxResults === 1) {
+          return { items: [] };
+        }
+        return { items: parentId === docTypeFolder.id ? [failedFile, successfulFile] : [] };
+      },
+      getFile(fileId) {
+        if (fileId === failedFile.id || fileId === successfulFile.id) {
+          return { parents: [docTypeFolder.id] };
+        }
+
+        return { parents: [] };
+      },
+      patchFile(patchData, fileId, params) {
+        if (fileId === failedFile.id && (!params || !Object.prototype.hasOwnProperty.call(params, "addParents"))) {
+          throw new Error("rename failed");
+        }
+
+        return { id: fileId, title: patchData.title || "" };
+      },
+      logSheet: createLogSheet(logValues, setValuesCalls),
+      insertFolder(resource) {
+        return {
+          id: `ensured-${resource.parents[0].id}-${resource.title}`,
+          title: resource.title,
+        };
+      },
+    });
+
+    const result = context.correctArchiveIssuerFolders();
+
+    expect(result.correctedFolders).toBe(0);
+    expect(result.failedItems).toBe(1);
+    expect(result.updatedLogRows).toBe(0);
+    expect(result.errors).toContainEqual({
+      source: "file:file-failed",
+      message: "rename failed",
+    });
+    expect(patchedFiles).toContainEqual({
+      patchData: { title: "2026-04-11_桜小学校_通知_5月号.pdf" },
+      fileId: "file-success",
+      params: { supportsAllDrives: true },
+    });
+    expect(movedFiles).toContainEqual({
+      patchData: {},
+      fileId: "file-success",
+      params: {
+        addParents: "ensured-ensured-archive-root-桜小学校-通知",
+        removeParents: docTypeFolder.id,
+        fields: "id,parents",
+        supportsAllDrives: true,
+      },
+    });
+    expect(setValuesCalls).toHaveLength(0);
+    expect(updatedProperties.lastCorrectedIssuerFolder).toBeUndefined();
+  });
 });
