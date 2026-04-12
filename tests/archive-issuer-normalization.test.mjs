@@ -18,6 +18,7 @@ function createFileItem(id, title, parentId) {
 function createNormalizationContext(overrides = {}) {
   const patchedFiles = [];
   const movedFiles = [];
+  const removedFolders = [];
   const updatedProperties = {};
   const deletedProperties = [];
   const logInfoCalls = [];
@@ -93,6 +94,15 @@ function createNormalizationContext(overrides = {}) {
 
             return { id: resource.title || "new-folder", title: resource.title || "" };
           },
+          remove(fileId, params) {
+            removedFolders.push({ fileId, params });
+
+            if (overrides.removeFile) {
+              return overrides.removeFile(fileId, params);
+            }
+
+            return null;
+          },
         },
       },
       SpreadsheetApp: {
@@ -132,6 +142,7 @@ function createNormalizationContext(overrides = {}) {
     context,
     patchedFiles,
     movedFiles,
+    removedFolders,
     updatedProperties,
     deletedProperties,
     logInfoCalls,
@@ -167,6 +178,24 @@ function createLogSheet(logValues, setValuesCalls) {
 }
 
 describe("normalizeArchiveIssuerNames", () => {
+  test("updates archiveFinalName inside updateIssuerFieldsInLogRow_", () => {
+    const { context } = createNormalizationContext();
+    const row = new Array(LOG_HEADERS.length).fill("");
+    row[8] = "パークホームズＬａＬａ新三郷管理組合";
+    row[13] = "パークホームズＬａＬａ新三郷管理組合/請求書";
+    row[14] = "2026-04-10_パークホームズＬａＬａ新三郷管理組合_請求書_4月分.pdf";
+
+    context.updateIssuerFieldsInLogRow_(
+      row,
+      "パークホームズＬａＬａ新三郷管理組合",
+      "パークホームズLaLa新三郷管理組合",
+    );
+
+    expect(row[8]).toBe("パークホームズLaLa新三郷管理組合");
+    expect(row[13]).toBe("パークホームズLaLa新三郷管理組合/請求書");
+    expect(row[14]).toBe("2026-04-10_パークホームズLaLa新三郷管理組合_請求書_4月分.pdf");
+  });
+
   test("renames issuer folder when normalized name has no collision", () => {
     const sourceFolder = createFolderItem("issuer-source", "パークホームズＬａＬａ新三郷管理組合", "archive-root");
     const docTypeFolder = createFolderItem("doc-invoice", "請求書", sourceFolder.id);
@@ -222,7 +251,7 @@ describe("normalizeArchiveIssuerNames", () => {
     const docTypeFolder = createFolderItem("doc-invoice", "請求書", sourceFolder.id);
     const file = createFileItem("file-1", "2026-04-10_パークホームズＬａＬａ新三郷管理組合_請求書_4月分.pdf", docTypeFolder.id);
 
-    const { context, movedFiles, patchedFiles } = createNormalizationContext({
+    const { context, movedFiles, patchedFiles, removedFolders } = createNormalizationContext({
       listFolders(params, query) {
         const parentId = query.match(/'([^']+)' in parents/)[1];
         const titleMatch = query.match(/title = '([^']+)'/);
@@ -237,6 +266,10 @@ describe("normalizeArchiveIssuerNames", () => {
       },
       listFiles(params, query) {
         const parentId = query.match(/'([^']+)' in parents/)[1];
+        if (params.maxResults === 1) {
+          return { items: [] };
+        }
+
         return {
           items: parentId === docTypeFolder.id ? [file] : [],
         };
@@ -273,6 +306,14 @@ describe("normalizeArchiveIssuerNames", () => {
     expect(patchedFiles.some(function(call) {
       return call.fileId === sourceFolder.id && call.patchData.title === normalizedFolder.title;
     })).toBe(false);
+    expect(removedFolders).toContainEqual({
+      fileId: docTypeFolder.id,
+      params: { supportsAllDrives: true },
+    });
+    expect(removedFolders).toContainEqual({
+      fileId: sourceFolder.id,
+      params: { supportsAllDrives: true },
+    });
   });
 
   test("renames archived file names with normalized issuer segment", () => {

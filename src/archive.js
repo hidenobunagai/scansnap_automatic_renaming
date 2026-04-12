@@ -74,7 +74,7 @@ function buildNormalizedArchiveFileName_(fileName, issuerFolderName, normalizedI
   return String(fileName || "").replace(issuerFolderName, normalizedIssuerFolderName);
 }
 
-function updateIssuerFieldsInLogRow_(row, normalizedIssuer) {
+function updateIssuerFieldsInLogRow_(row, oldIssuer, normalizedIssuer) {
   row[LOG_HEADER_INDEX_.issuer] = normalizedIssuer;
 
   var archivePath = String(row[LOG_HEADER_INDEX_.archiveRelativePath] || "");
@@ -86,7 +86,11 @@ function updateIssuerFieldsInLogRow_(row, normalizedIssuer) {
 
   var archiveFileName = String(row[LOG_HEADER_INDEX_.archiveFinalName] || "");
   if (archiveFileName) {
-    row[LOG_HEADER_INDEX_.archiveFinalName] = archiveFileName;
+    row[LOG_HEADER_INDEX_.archiveFinalName] = buildNormalizedArchiveFileName_(
+      archiveFileName,
+      oldIssuer,
+      normalizedIssuer,
+    );
   }
 }
 
@@ -217,7 +221,7 @@ function normalizeArchiveIssuerNames() {
         destinationFolder.title + "/" + documentTypeFolder.title,
       );
 
-      listFilesInFolder_(documentTypeFolder.id).forEach(function(file) {
+    listFilesInFolder_(documentTypeFolder.id).forEach(function(file) {
         try {
           var nextFileName = buildNormalizedArchiveFileName_(
             file.title,
@@ -241,7 +245,21 @@ function normalizeArchiveIssuerNames() {
           });
         }
       });
+
+      try {
+        deleteEmptyFolder_(documentTypeFolder.id);
+      } catch (ignore) {
+        // Folder not empty or already deleted
+      }
     });
+
+    if (destinationFolder.id !== issuerFolder.id) {
+      try {
+        deleteEmptyFolder_(issuerFolder.id);
+      } catch (ignore) {
+        // Folder not empty or already deleted
+      }
+    }
 
     counts.updatedLogRows += normalizeIssuerRowsInLog_(issuerFolder.title, destinationFolder.title, config);
     propertiesService.setProperty("lastNormalizedIssuerFolder", issuerFolder.title);
@@ -382,12 +400,7 @@ function normalizeIssuerRowsInLog_(oldIssuer, newIssuer, config) {
       continue;
     }
 
-    updateIssuerFieldsInLogRow_(values[i], newIssuer);
-
-    var archiveFileName = String(values[i][LOG_HEADER_INDEX_.archiveFinalName] || "");
-    if (archiveFileName) {
-      values[i][LOG_HEADER_INDEX_.archiveFinalName] = buildNormalizedArchiveFileName_(archiveFileName, oldIssuer, newIssuer);
-    }
+    updateIssuerFieldsInLogRow_(values[i], oldIssuer, newIssuer);
 
     updated += 1;
   }
