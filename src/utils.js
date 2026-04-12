@@ -37,6 +37,16 @@ function truncateFileSegment_(value, maxLength) {
   return sanitized.slice(0, maxLength).replace(/[-_.]+$/g, "");
 }
 
+function normalizeIssuerText_(value) {
+  return collapseWhitespace_(String(value || "").replace(/[\u3000\uFF01-\uFF5E]/g, function(char) {
+    if (char === "\u3000") {
+      return " ";
+    }
+
+    return String.fromCharCode(char.charCodeAt(0) - 0xFEE0);
+  }));
+}
+
 function dedupeOrderedParts_(parts) {
   const seen = {};
   const deduped = [];
@@ -76,7 +86,15 @@ function normalizeIsoDate_(value) {
     return "";
   }
 
-  return Utilities.formatString("%04d-%02d-%02d", year, month, day);
+  if (Utilities && typeof Utilities.formatString === "function") {
+    return Utilities.formatString("%04d-%02d-%02d", year, month, day);
+  }
+
+  return [year, month, day]
+    .map(function(part, index) {
+      return String(part).padStart(index === 0 ? 4 : 2, "0");
+    })
+    .join("-");
 }
 
 function normalizeConfidence_(value) {

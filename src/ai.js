@@ -138,7 +138,7 @@ function normalizeAiSuggestion_(payload, fileMeta, config) {
 
   return {
     documentDate: normalizeIsoDate_(payload.documentDate) || fallbackDate,
-    issuer: truncateFileSegment_(payload.issuer, config.maxIssuerLength),
+    issuer: truncateFileSegment_(normalizeIssuerText_(payload.issuer), config.maxIssuerLength),
     documentType: truncateFileSegment_(payload.documentType, config.maxDocumentTypeLength),
     subject: subject || fallbackSubject || "scan",
     summary: truncateText_(collapseWhitespace_(payload.summary || payload.subject || ""), 120),
