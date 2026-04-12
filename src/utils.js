@@ -181,6 +181,50 @@ function trimOrganizationCandidatePrefix_(value) {
   return trimmed;
 }
 
+function trimOrganizationCandidateStart_(value) {
+  var candidate = collapseWhitespace_(value);
+  var markerIndex = -1;
+  var marker = "";
+  var allowedLeadingCharacterPattern = /[A-Z0-9\u30A0-\u30FF\u3400-\u9FFF々ー・()（）.&'\-\uFF10-\uFF19\uFF21-\uFF3A\uFF41-\uFF5A\s]/i;
+  var start = -1;
+  var cursor;
+
+  ORGANIZATION_MARKERS_.forEach(function(currentMarker) {
+    var index = candidate.indexOf(currentMarker);
+
+    if (index === -1) {
+      return;
+    }
+
+    if (markerIndex === -1 || index < markerIndex) {
+      markerIndex = index;
+      marker = currentMarker;
+    }
+  });
+
+  if (markerIndex === -1) {
+    return candidate;
+  }
+
+  if (marker === "株式会社" || marker === "有限会社" || marker === "合同会社") {
+    return candidate.slice(markerIndex);
+  }
+
+  start = markerIndex;
+  cursor = markerIndex - 1;
+
+  while (cursor >= 0 && allowedLeadingCharacterPattern.test(candidate.charAt(cursor))) {
+    start = cursor;
+    cursor -= 1;
+  }
+
+  while (start < markerIndex && /\s/.test(candidate.charAt(start))) {
+    start += 1;
+  }
+
+  return collapseWhitespace_(candidate.slice(start));
+}
+
 function extractOrganizationCandidates_(value) {
   var text = collapseWhitespace_(value);
   var candidates = [];
@@ -205,7 +249,9 @@ function extractOrganizationCandidates_(value) {
 
   while ((match = pattern.exec(text)) !== null) {
     candidates.push(
-      trimOrganizationCandidatePrefix_(trimOrganizationCandidateSuffix_(match[1])),
+      trimOrganizationCandidatePrefix_(
+        trimOrganizationCandidateStart_(trimOrganizationCandidateSuffix_(match[1])),
+      ),
     );
   }
 

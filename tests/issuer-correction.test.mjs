@@ -88,6 +88,19 @@ describe("extractOrganizationCandidates_", () => {
     expect(candidates).not.toContain("差出人 株式会社サンプル");
   });
 
+  test("trims arbitrary leading text before the organization phrase", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js"],
+    });
+
+    const candidates = context.extractOrganizationCandidates_(
+      "本日は桜小学校からのお知らせです。",
+    );
+
+    expect(candidates).toContain("桜小学校");
+    expect(candidates).not.toContain("本日は桜小学校");
+  });
+
   test("keeps candidates in document order", () => {
     const context = createAppsScriptContext({
       files: ["src/utils.js"],
