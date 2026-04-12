@@ -32,11 +32,13 @@ describe("normalizeAiSuggestion_", () => {
     const context = createAppsScriptContext({
       files: ["src/utils.js", "src/ai.js"],
     });
+    const issuer = "かなＡＡＡＡＡ／／／管理組合";
+    const maxIssuerLength = 12;
 
     const result = context.normalizeAiSuggestion_(
       {
         documentDate: "2026-04-10",
-        issuer: "パークホームズＬａＬａ新三郷管理組合",
+        issuer: issuer,
         documentType: "請求書",
         subject: "4月分",
         summary: "4月分",
@@ -48,12 +50,17 @@ describe("normalizeAiSuggestion_", () => {
       },
       {
         timezone: "Asia/Tokyo",
-        maxIssuerLength: 50,
+        maxIssuerLength: maxIssuerLength,
         maxDocumentTypeLength: 30,
         maxSubjectLength: 50,
       },
     );
 
-    expect(result.issuer).toBe("パークホームズLaLa新三郷管理組合");
+    const truncateBeforeNormalize = context.normalizeIssuerText_(
+      context.truncateFileSegment_(issuer, maxIssuerLength),
+    );
+
+    expect(result.issuer).toBe("かなAAAAA-管理組合");
+    expect(truncateBeforeNormalize).toBe("かなAAAAA///管理");
   });
 });
