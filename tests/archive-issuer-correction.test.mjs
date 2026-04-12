@@ -598,4 +598,45 @@ describe("correctArchiveIssuerFolders", () => {
     expect(patchedFiles).toHaveLength(0);
     expect(updatedProperties.lastCorrectedIssuerFolder).toBeUndefined();
   });
+
+  test("skips issuer folder when extracted candidates are only weak labels", () => {
+    const sourceFolder = createFolderItem("issuer-weak", "案内", "archive-root");
+    const docTypeFolder = createFolderItem("doc-notice", "通知", sourceFolder.id);
+    const weakSchoolFile = createFileItem("file-1", "幼稚園", docTypeFolder.id);
+    const weakLetterFile = createFileItem("file-2", "おたより", docTypeFolder.id);
+    const setValuesCalls = [];
+
+    const { context, movedFiles, patchedFiles, updatedProperties } = createCorrectionContext({
+      listFolders(params, query) {
+        const parentId = query.match(/'([^']+)' in parents/)[1];
+        return {
+          items: [sourceFolder, docTypeFolder].filter(function(item) {
+            return item.mimeType === "application/vnd.google-apps.folder" && item.parents[0].id === parentId;
+          }),
+        };
+      },
+      listFiles(params, query) {
+        const parentId = query.match(/'([^']+)' in parents/)[1];
+        if (params.maxResults === 1) {
+          return { items: [] };
+        }
+        return { items: parentId === docTypeFolder.id ? [weakSchoolFile, weakLetterFile] : [] };
+      },
+      getFile() {
+        return { parents: [docTypeFolder.id] };
+      },
+      logSheet: createLogSheet([[...LOG_HEADERS]], setValuesCalls),
+    });
+
+    const result = context.correctArchiveIssuerFolders();
+
+    expect(result.correctedFolders).toBe(0);
+    expect(result.skippedFolders).toBe(1);
+    expect(result.renamedFiles).toBe(0);
+    expect(result.updatedLogRows).toBe(0);
+    expect(movedFiles).toHaveLength(0);
+    expect(patchedFiles).toHaveLength(0);
+    expect(setValuesCalls).toHaveLength(0);
+    expect(updatedProperties.lastCorrectedIssuerFolder).toBeUndefined();
+  });
 });

@@ -108,7 +108,13 @@ function inferCorrectedIssuerForArchiveFolder_(issuerFolderName, signals) {
       .concat(extractOrganizationCandidates_(signals.fileNames || "")),
   ).map(normalizeIssuerText_);
 
-  return candidates[0] || "";
+  for (var i = 0; i < candidates.length; i++) {
+    if (!isWeakIssuerLabel_(candidates[i])) {
+      return candidates[i];
+    }
+  }
+
+  return "";
 }
 
 function buildArchiveCorrectionSignals_(issuerFolder, logRows, fileNames) {
