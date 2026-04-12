@@ -143,6 +143,24 @@ describe("correctIssuerSuggestion_", () => {
     expect(corrected).toBe("青葉市役所");
   });
 
+  test("normalizes spaced organization candidates before replacing a weak issuer", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js", "src/ai.js"],
+    });
+
+    const corrected = context.correctIssuerSuggestion_(
+      {
+        issuer: "案内",
+        documentType: "おたより",
+        subject: "4月号",
+        summary: "管理組合からのおたより",
+      },
+      "パークホームズ　ＬａＬａ新三郷管理組合 おたより",
+    );
+
+    expect(corrected).toBe("パークホームズ LaLa新三郷管理組合");
+  });
+
   test("keeps current issuer when no stronger evidence exists", () => {
     const context = createAppsScriptContext({
       files: ["src/utils.js", "src/ai.js"],

@@ -138,7 +138,10 @@ function correctIssuerSuggestion_(payload, extractedText) {
   var candidates = dedupeOrderedParts_(
     extractOrganizationCandidates_(extractedText || "")
       .concat(extractOrganizationCandidates_(payload.subject || ""))
-      .concat(extractOrganizationCandidates_(payload.summary || "")),
+      .concat(extractOrganizationCandidates_(payload.summary || ""))
+      .map(function(candidate) {
+        return normalizeIssuerText_(candidate);
+      }),
   );
 
   return candidates[0] || issuer;

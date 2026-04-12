@@ -158,10 +158,11 @@ function extractOrganizationCandidates_(value) {
     })
     .join("|");
   var boundaryPattern = "(?:$|[\\s　、。()（）]|から|より|の|は|が|を|に|へ|と|で)";
+  var candidatePattern = "[^、。()（）]{0,20}?(?:" + markerPattern + ")[^、。()（）]{0,20}?";
   var pattern = new RegExp(
-    "(?:^|[\\s　、。()（）]|から|より|の|は|が|を|に|へ|と|で)([^\\s　、。()（）]{0,20}?(?:" +
-      markerPattern +
-      ")[^\\s　、。()（）]{0,20}?)" +
+    "(?:^|[\\s　、。()（）]|から|より|の|は|が|を|に|へ|と|で)(" +
+      candidatePattern +
+      ")" +
       "(?=" +
       boundaryPattern +
       ")",
