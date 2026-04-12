@@ -182,6 +182,59 @@ describe("buildArchiveRelativePath_", () => {
       ),
     ).toBe("パークホームズLaLa新三郷管理組合/請求書");
   });
+
+  test("uses corrected issuer in suggested file name and archive path", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js", "src/ai.js", "src/filename.js", "src/archive.js"],
+    });
+
+    const suggestion = context.normalizeAiSuggestion_(
+      {
+        documentDate: "2026-04-12",
+        issuer: "学級だより",
+        documentType: "おたより",
+        subject: "4月号",
+        summary: "桜小学校 4月号",
+        confidence: 0.7,
+      },
+      {
+        name: "scan.pdf",
+        createdAt: new Date("2026-04-12T00:00:00Z"),
+      },
+      {
+        timezone: "Asia/Tokyo",
+        maxIssuerLength: 50,
+        maxDocumentTypeLength: 30,
+        maxSubjectLength: 50,
+      },
+      "桜小学校 学級だより 4月号",
+    );
+
+    expect(suggestion.issuer).toBe("桜小学校");
+
+    expect(
+      context.buildSuggestedFileName_(
+        suggestion,
+        { name: "scan.pdf", createdAt: new Date("2026-04-12T00:00:00Z") },
+        {
+          timezone: "Asia/Tokyo",
+          maxIssuerLength: 50,
+          maxDocumentTypeLength: 30,
+          maxSubjectLength: 50,
+        },
+      ),
+    ).toContain("桜小学校");
+
+    expect(
+      context.buildArchiveRelativePath_(
+        suggestion,
+        {
+          maxIssuerLength: 50,
+          maxDocumentTypeLength: 30,
+        },
+      ),
+    ).toBe("桜小学校/おたより");
+  });
 });
 
 describe("processSinglePdfFile_", () => {
