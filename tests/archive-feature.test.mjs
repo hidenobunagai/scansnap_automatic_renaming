@@ -133,6 +133,42 @@ describe("buildArchiveRelativePath_", () => {
       ),
     ).toBe("発行元不明/未分類");
   });
+
+  test("uses normalized issuer in suggested file name and archive path", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js", "src/filename.js", "src/archive.js"],
+    });
+
+    const suggestion = {
+      issuer: context.normalizeIssuerText_("パークホームズＬａＬａ新三郷管理組合"),
+      documentType: "請求書",
+      subject: "4月分",
+      documentDate: "2026-04-10",
+    };
+
+    expect(
+      context.buildSuggestedFileName_(
+        suggestion,
+        { name: "scan.pdf", createdAt: new Date("2026-04-10T00:00:00Z") },
+        {
+          timezone: "Asia/Tokyo",
+          maxIssuerLength: 50,
+          maxDocumentTypeLength: 30,
+          maxSubjectLength: 50,
+        },
+      ),
+    ).toContain("パークホームズLaLa新三郷管理組合");
+
+    expect(
+      context.buildArchiveRelativePath_(
+        suggestion,
+        {
+          maxIssuerLength: 50,
+          maxDocumentTypeLength: 30,
+        },
+      ),
+    ).toBe("パークホームズLaLa新三郷管理組合/請求書");
+  });
 });
 
 describe("processSinglePdfFile_", () => {
