@@ -70,6 +70,26 @@ function moveDriveFileToFolder_(fileId, folderId) {
   );
 }
 
+function buildNormalizedArchiveFileName_(fileName, issuerFolderName, normalizedIssuerFolderName) {
+  return String(fileName || "").replace(issuerFolderName, normalizedIssuerFolderName);
+}
+
+function updateIssuerFieldsInLogRow_(row, normalizedIssuer) {
+  row[LOG_HEADER_INDEX_.issuer] = normalizedIssuer;
+
+  var archivePath = String(row[LOG_HEADER_INDEX_.archiveRelativePath] || "");
+  if (archivePath) {
+    var segments = archivePath.split("/");
+    segments[0] = normalizedIssuer;
+    row[LOG_HEADER_INDEX_.archiveRelativePath] = segments.join("/");
+  }
+
+  var archiveFileName = String(row[LOG_HEADER_INDEX_.archiveFinalName] || "");
+  if (archiveFileName) {
+    row[LOG_HEADER_INDEX_.archiveFinalName] = archiveFileName;
+  }
+}
+
 function migrateArchiveFolderStructure() {
   var config = getConfig_();
   var archiveRootFolderId = requireArchiveRootFolderId_(config);
@@ -148,6 +168,97 @@ function migrateArchiveFolderStructure() {
 
   propertiesService.deleteProperty("lastMigratedDocumentType");
 
+  return summary;
+}
+
+function normalizeArchiveIssuerNames() {
+  var config = getConfig_();
+  var archiveRootFolderId = requireArchiveRootFolderId_(config);
+  var propertiesService = getScriptProperties_();
+  var lastNormalized = propertiesService.getProperty("lastNormalizedIssuerFolder") || "";
+  var issuerFolders = listDirectChildFolders_(archiveRootFolderId);
+  var counts = {
+    renamedFolders: 0,
+    mergedFolders: 0,
+    renamedFiles: 0,
+    updatedLogRows: 0,
+    skippedFolders: 0,
+    failedItems: 0,
+  };
+  var errors = [];
+
+  issuerFolders.forEach(function(issuerFolder) {
+    if (lastNormalized && issuerFolder.title <= lastNormalized) {
+      counts.skippedFolders += 1;
+      return;
+    }
+
+    var normalizedIssuer = normalizeIssuerText_(issuerFolder.title);
+    var destinationFolder = issuerFolder;
+
+    if (normalizedIssuer && normalizedIssuer !== issuerFolder.title) {
+      var existingFolder = findChildFolder_(archiveRootFolderId, normalizedIssuer);
+
+      if (existingFolder) {
+        destinationFolder = existingFolder;
+        counts.mergedFolders += 1;
+      } else {
+        Drive.Files.patch({ title: normalizedIssuer }, issuerFolder.id, {
+          supportsAllDrives: true,
+        });
+        destinationFolder = { id: issuerFolder.id, title: normalizedIssuer };
+        counts.renamedFolders += 1;
+      }
+    }
+
+    listDirectChildFolders_(issuerFolder.id).forEach(function(documentTypeFolder) {
+      var destinationDocumentTypeFolder = ensureArchiveFolderByPath_(
+        archiveRootFolderId,
+        destinationFolder.title + "/" + documentTypeFolder.title,
+      );
+
+      listFilesInFolder_(documentTypeFolder.id).forEach(function(file) {
+        try {
+          var nextFileName = buildNormalizedArchiveFileName_(
+            file.title,
+            issuerFolder.title,
+            destinationFolder.title,
+          );
+
+          moveDriveFileToFolder_(file.id, destinationDocumentTypeFolder.id);
+
+          if (nextFileName !== file.title) {
+            Drive.Files.patch({ title: nextFileName }, file.id, {
+              supportsAllDrives: true,
+            });
+            counts.renamedFiles += 1;
+          }
+        } catch (error) {
+          counts.failedItems += 1;
+          errors.push({
+            source: "file:" + file.id,
+            message: getErrorMessage_(error),
+          });
+        }
+      });
+    });
+
+    counts.updatedLogRows += normalizeIssuerRowsInLog_(issuerFolder.title, destinationFolder.title, config);
+    propertiesService.setProperty("lastNormalizedIssuerFolder", issuerFolder.title);
+  });
+
+  var summary = {
+    renamedFolders: counts.renamedFolders,
+    mergedFolders: counts.mergedFolders,
+    renamedFiles: counts.renamedFiles,
+    updatedLogRows: counts.updatedLogRows,
+    skippedFolders: counts.skippedFolders,
+    failedItems: counts.failedItems,
+    errors: errors,
+  };
+
+  logInfo_("Archive issuer normalization completed.", summary);
+  propertiesService.deleteProperty("lastNormalizedIssuerFolder");
   return summary;
 }
 
@@ -247,6 +358,45 @@ function deleteEmptyFolder_(folderId) {
   }
 
   Drive.Files.remove(folderId, { supportsAllDrives: true });
+}
+
+function normalizeIssuerRowsInLog_(oldIssuer, newIssuer, config) {
+  if (!oldIssuer || !newIssuer || oldIssuer === newIssuer) {
+    return 0;
+  }
+
+  var logState = getLogState_(config);
+  var sheet = logState.sheet;
+  var lastRow = sheet.getLastRow();
+
+  if (lastRow < 2) {
+    return 0;
+  }
+
+  var range = sheet.getRange(2, 1, lastRow - 1, LOG_HEADERS_.length);
+  var values = range.getValues();
+  var updated = 0;
+
+  for (var i = 0; i < values.length; i++) {
+    if (String(values[i][LOG_HEADER_INDEX_.issuer] || "") !== oldIssuer) {
+      continue;
+    }
+
+    updateIssuerFieldsInLogRow_(values[i], newIssuer);
+
+    var archiveFileName = String(values[i][LOG_HEADER_INDEX_.archiveFinalName] || "");
+    if (archiveFileName) {
+      values[i][LOG_HEADER_INDEX_.archiveFinalName] = buildNormalizedArchiveFileName_(archiveFileName, oldIssuer, newIssuer);
+    }
+
+    updated += 1;
+  }
+
+  if (updated) {
+    range.setValues(values);
+  }
+
+  return updated;
 }
 
 function migrateArchivePathsInLog_(config) {
