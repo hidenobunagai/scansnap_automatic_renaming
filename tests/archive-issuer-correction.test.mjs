@@ -423,8 +423,8 @@ describe("correctArchiveIssuerFolders", () => {
       "file-1",
       "renamed",
       "scan.pdf",
-      "2026-04-10_案内_通知.pdf",
-      "2026-04-10_案内_通知.pdf",
+      "2026-04-10_案内_通知_桜小学校.pdf",
+      "2026-04-10_案内_通知_桜小学校.pdf",
       0.99,
       "2026-04-10",
       "案内",
@@ -433,7 +433,7 @@ describe("correctArchiveIssuerFolders", () => {
       "桜小学校の通知です",
       "",
       "案内/通知",
-      "2026-04-10_案内_通知.pdf",
+      "2026-04-10_案内_通知_桜小学校.pdf",
       "archived-file-id",
     ]];
     const setValuesCalls = [];
@@ -481,7 +481,190 @@ describe("correctArchiveIssuerFolders", () => {
     expect(setValuesCalls).toHaveLength(1);
     expect(logValues[1][8]).toBe("桜小学校");
     expect(logValues[1][13]).toBe("桜小学校/通知");
-    expect(logValues[1][14]).toBe("2026-04-10_桜小学校_通知.pdf");
+    expect(logValues[1][14]).toBe("2026-04-10_桜小学校_通知_桜小学校.pdf");
+  });
+
+  test("ignores unrelated same-issuer log rows when inferring corrected issuer", () => {
+    const sourceFolder = createFolderItem("issuer-weak", "案内", "archive-root");
+    const docTypeFolder = createFolderItem("doc-notice", "通知", sourceFolder.id);
+    const file = createFileItem("file-1", "2026-04-10_案内_通知_桜小学校.pdf", docTypeFolder.id);
+    const logValues = [[...LOG_HEADERS], [
+      "2026-04-10T00:00:00Z",
+      "file-1",
+      "renamed",
+      "scan.pdf",
+      "2026-04-10_案内_通知_桜小学校.pdf",
+      "2026-04-10_案内_通知_桜小学校.pdf",
+      0.99,
+      "2026-04-10",
+      "案内",
+      "通知",
+      "学校からのお知らせ",
+      "桜小学校の通知です",
+      "",
+      "案内/通知",
+      "2026-04-10_案内_通知_桜小学校.pdf",
+      "archived-file-id",
+    ], [
+      "2026-04-11T00:00:00Z",
+      "unrelated-file",
+      "review_needed",
+      "other.pdf",
+      "",
+      "",
+      0.4,
+      "2026-04-11",
+      "案内",
+      "通知",
+      "市役所からのお知らせ",
+      "三郷市役所の通知です",
+      "",
+      "",
+      "",
+      "",
+    ]];
+
+    const { context, movedFiles } = createCorrectionContext({
+      listFolders(params, query) {
+        const parentId = query.match(/'([^']+)' in parents/)[1];
+        const titleMatch = query.match(/title = '([^']+)'/);
+        return {
+          items: [sourceFolder, docTypeFolder].filter(function(item) {
+            if (item.mimeType !== "application/vnd.google-apps.folder" || item.parents[0].id !== parentId) {
+              return false;
+            }
+
+            if (titleMatch) {
+              return item.title === titleMatch[1];
+            }
+
+            return true;
+          }),
+        };
+      },
+      listFiles(params, query) {
+        const parentId = query.match(/'([^']+)' in parents/)[1];
+        if (params.maxResults === 1) {
+          return { items: [] };
+        }
+        return { items: parentId === docTypeFolder.id ? [file] : [] };
+      },
+      getFile() {
+        return { parents: [docTypeFolder.id] };
+      },
+      logSheet: createLogSheet(logValues, []),
+      insertFolder(resource) {
+        return {
+          id: `ensured-${resource.parents[0].id}-${resource.title}`,
+          title: resource.title,
+        };
+      },
+    });
+
+    const result = context.correctArchiveIssuerFolders();
+
+    expect(result.correctedFolders).toBe(1);
+    expect(result.skippedFolders).toBe(0);
+    expect(movedFiles).toContainEqual({
+      patchData: {},
+      fileId: "file-1",
+      params: {
+        addParents: "ensured-ensured-archive-root-桜小学校-通知",
+        removeParents: docTypeFolder.id,
+        fields: "id,parents",
+        supportsAllDrives: true,
+      },
+    });
+  });
+
+  test("updates only matching archived log rows for corrected issuer", () => {
+    const sourceFolder = createFolderItem("issuer-weak", "案内", "archive-root");
+    const docTypeFolder = createFolderItem("doc-notice", "通知", sourceFolder.id);
+    const file = createFileItem("file-1", "2026-04-10_案内_通知_桜小学校.pdf", docTypeFolder.id);
+    const logValues = [[...LOG_HEADERS], [
+      "2026-04-10T00:00:00Z",
+      "file-1",
+      "renamed",
+      "scan.pdf",
+      "2026-04-10_案内_通知.pdf",
+      "2026-04-10_案内_通知.pdf",
+      0.99,
+      "2026-04-10",
+      "案内",
+      "通知",
+      "学校からのお知らせ",
+      "桜小学校の通知です",
+      "",
+      "案内/通知",
+      "2026-04-10_案内_通知_桜小学校.pdf",
+      "archived-file-id",
+    ], [
+      "2026-04-11T00:00:00Z",
+      "other-file",
+      "copy_failed",
+      "other.pdf",
+      "",
+      "",
+      0.4,
+      "2026-04-11",
+      "案内",
+      "通知",
+      "市役所からのお知らせ",
+      "三郷市役所の通知です",
+      "",
+      "案内/通知",
+      "2026-04-11_案内_通知_三郷市役所.pdf",
+      "",
+    ]];
+    const setValuesCalls = [];
+
+    const { context } = createCorrectionContext({
+      listFolders(params, query) {
+        const parentId = query.match(/'([^']+)' in parents/)[1];
+        const titleMatch = query.match(/title = '([^']+)'/);
+        return {
+          items: [sourceFolder, docTypeFolder].filter(function(item) {
+            if (item.mimeType !== "application/vnd.google-apps.folder" || item.parents[0].id !== parentId) {
+              return false;
+            }
+
+            if (titleMatch) {
+              return item.title === titleMatch[1];
+            }
+
+            return true;
+          }),
+        };
+      },
+      listFiles(params, query) {
+        const parentId = query.match(/'([^']+)' in parents/)[1];
+        if (params.maxResults === 1) {
+          return { items: [] };
+        }
+        return { items: parentId === docTypeFolder.id ? [file] : [] };
+      },
+      getFile() {
+        return { parents: [docTypeFolder.id] };
+      },
+      logSheet: createLogSheet(logValues, setValuesCalls),
+      insertFolder(resource) {
+        return {
+          id: `ensured-${resource.parents[0].id}-${resource.title}`,
+          title: resource.title,
+        };
+      },
+    });
+
+    const result = context.correctArchiveIssuerFolders();
+
+    expect(result.updatedLogRows).toBe(1);
+    expect(setValuesCalls).toHaveLength(1);
+    expect(logValues[1][8]).toBe("桜小学校");
+    expect(logValues[1][13]).toBe("桜小学校/通知");
+    expect(logValues[1][14]).toBe("2026-04-10_桜小学校_通知_桜小学校.pdf");
+    expect(logValues[2][8]).toBe("案内");
+    expect(logValues[2][13]).toBe("案内/通知");
+    expect(logValues[2][14]).toBe("2026-04-11_案内_通知_三郷市役所.pdf");
   });
 
   test("resumes after lastCorrectedIssuerFolder checkpoint", () => {

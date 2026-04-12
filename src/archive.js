@@ -137,21 +137,46 @@ function buildArchiveCorrectionSignals_(logRows, fileNames) {
   };
 }
 
-function getIssuerLogRows_(issuerFolderName, config) {
+function buildArchiveLogFileNameLookup_(archiveFileNames) {
+  var lookup = {};
+
+  (archiveFileNames || []).forEach(function(fileName) {
+    var normalized = String(fileName || "");
+
+    if (!normalized) {
+      return;
+    }
+
+    lookup[normalized] = true;
+  });
+
+  return lookup;
+}
+
+function getIssuerLogRows_(issuerFolderName, archiveFileNames, config) {
   var logState = getLogState_(config);
   var sheet = logState.sheet;
   var lastRow = sheet.getLastRow();
+  var archiveFileNameLookup = buildArchiveLogFileNameLookup_(archiveFileNames);
 
   if (lastRow < 2) {
     return [];
   }
 
   return sheet.getRange(2, 1, lastRow - 1, LOG_HEADERS_.length).getValues().filter(function(row) {
-    return String(row[LOG_HEADER_INDEX_.issuer] || "") === issuerFolderName;
+    if (String(row[LOG_HEADER_INDEX_.issuer] || "") !== issuerFolderName) {
+      return false;
+    }
+
+    if (!archiveFileNames || !archiveFileNames.length) {
+      return true;
+    }
+
+    return Boolean(archiveFileNameLookup[String(row[LOG_HEADER_INDEX_.archiveFinalName] || "")]);
   });
 }
 
-function correctIssuerRowsInLog_(oldIssuer, correctedIssuer, config) {
+function correctIssuerRowsInLog_(oldIssuer, correctedIssuer, archiveFileNames, config) {
   if (!oldIssuer || !correctedIssuer || oldIssuer === correctedIssuer) {
     return 0;
   }
@@ -159,6 +184,7 @@ function correctIssuerRowsInLog_(oldIssuer, correctedIssuer, config) {
   var logState = getLogState_(config);
   var sheet = logState.sheet;
   var lastRow = sheet.getLastRow();
+  var archiveFileNameLookup = buildArchiveLogFileNameLookup_(archiveFileNames);
 
   if (lastRow < 2) {
     return 0;
@@ -170,6 +196,10 @@ function correctIssuerRowsInLog_(oldIssuer, correctedIssuer, config) {
 
   for (var i = 0; i < values.length; i++) {
     if (String(values[i][LOG_HEADER_INDEX_.issuer] || "") !== oldIssuer) {
+      continue;
+    }
+
+    if (archiveFileNames && archiveFileNames.length && !archiveFileNameLookup[String(values[i][LOG_HEADER_INDEX_.archiveFinalName] || "")]) {
       continue;
     }
 
@@ -405,7 +435,6 @@ function correctArchiveIssuerFolders() {
     }
 
     try {
-      var logRows = getIssuerLogRows_(issuerFolder.title, config);
       var documentTypeFolders = listDirectChildFolders_(issuerFolder.id);
       var fileNames = [];
       var issuerHadFailure = false;
@@ -415,6 +444,8 @@ function correctArchiveIssuerFolders() {
           fileNames.push(file.title);
         });
       });
+
+      var logRows = getIssuerLogRows_(issuerFolder.title, fileNames, config);
 
       var correctedIssuer = inferCorrectedIssuerForArchiveFolder_(
         issuerFolder.title,
@@ -471,7 +502,7 @@ function correctArchiveIssuerFolders() {
       }
 
       if (!issuerHadFailure) {
-        counts.updatedLogRows += correctIssuerRowsInLog_(issuerFolder.title, correctedIssuer, config);
+        counts.updatedLogRows += correctIssuerRowsInLog_(issuerFolder.title, correctedIssuer, fileNames, config);
         counts.correctedFolders += 1;
         propertiesService.setProperty("lastCorrectedIssuerFolder", issuerFolder.title);
       }
