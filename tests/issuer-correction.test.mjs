@@ -49,6 +49,32 @@ describe("extractOrganizationCandidates_", () => {
     ).toContain("株式会社サンプル");
   });
 
+  test("trims trailing subject text from school and public body candidates", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js"],
+    });
+
+    const schoolCandidates = context.extractOrganizationCandidates_("桜小学校4月号");
+    const publicBodyCandidates = context.extractOrganizationCandidates_(
+      "渋谷区教育委員会定例会資料",
+    );
+
+    expect(schoolCandidates).toContain("桜小学校");
+    expect(schoolCandidates).not.toContain("桜小学校4月号");
+    expect(publicBodyCandidates).toContain("渋谷区教育委員会");
+    expect(publicBodyCandidates).not.toContain("渋谷区教育委員会定例会資料");
+  });
+
+  test("extracts company names even when subject text immediately follows", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js"],
+    });
+
+    expect(
+      context.extractOrganizationCandidates_("株式会社サンプル請求書"),
+    ).toContain("株式会社サンプル");
+  });
+
   test("keeps candidates in document order", () => {
     const context = createAppsScriptContext({
       files: ["src/utils.js"],

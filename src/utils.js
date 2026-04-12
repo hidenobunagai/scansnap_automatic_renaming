@@ -85,6 +85,15 @@ const ORGANIZATION_MARKERS_ = [
   "クリニック",
 ];
 
+const ORGANIZATION_TRAILING_SUFFIX_PATTERNS_ = [
+  /定例会資料$/,
+  /請求書$/,
+  /納品書$/,
+  /おたより$/,
+  /案内$/,
+  /[0-9０-９]{1,2}月号$/,
+];
+
 function isWeakIssuerLabel_(value) {
   var text = collapseWhitespace_(value);
 
@@ -97,6 +106,46 @@ function isWeakIssuerLabel_(value) {
   }
 
   return false;
+}
+
+function trimOrganizationCandidateSuffix_(value) {
+  var candidate = collapseWhitespace_(value);
+  var markerEnd = -1;
+
+  ORGANIZATION_MARKERS_.forEach(function(marker) {
+    var markerIndex = candidate.lastIndexOf(marker);
+
+    if (markerIndex === -1) {
+      return;
+    }
+
+    markerEnd = Math.max(markerEnd, markerIndex + marker.length);
+  });
+
+  if (markerEnd === -1 || markerEnd >= candidate.length) {
+    return candidate;
+  }
+
+  var trimmed = candidate;
+  var changed = true;
+
+  while (changed) {
+    changed = false;
+
+    ORGANIZATION_TRAILING_SUFFIX_PATTERNS_.some(function(pattern) {
+      var next = trimmed.replace(pattern, "");
+
+      if (next === trimmed || next.length < markerEnd) {
+        return false;
+      }
+
+      trimmed = next;
+      changed = true;
+      return true;
+    });
+  }
+
+  return collapseWhitespace_(trimmed);
 }
 
 function extractOrganizationCandidates_(value) {
@@ -121,7 +170,7 @@ function extractOrganizationCandidates_(value) {
   var match;
 
   while ((match = pattern.exec(text)) !== null) {
-    candidates.push(collapseWhitespace_(match[1]));
+    candidates.push(trimOrganizationCandidateSuffix_(match[1]));
   }
 
   return dedupeOrderedParts_(candidates);
