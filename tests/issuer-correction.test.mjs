@@ -75,6 +75,19 @@ describe("extractOrganizationCandidates_", () => {
     ).toContain("株式会社サンプル");
   });
 
+  test("trims leading issuer labels before company candidates", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js"],
+    });
+
+    const candidates = context.extractOrganizationCandidates_(
+      "差出人 株式会社サンプル 請求書",
+    );
+
+    expect(candidates).toContain("株式会社サンプル");
+    expect(candidates).not.toContain("差出人 株式会社サンプル");
+  });
+
   test("keeps candidates in document order", () => {
     const context = createAppsScriptContext({
       files: ["src/utils.js"],

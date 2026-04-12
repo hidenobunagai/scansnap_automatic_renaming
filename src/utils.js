@@ -94,6 +94,14 @@ const ORGANIZATION_TRAILING_SUFFIX_PATTERNS_ = [
   /[0-9０-９]{1,2}月号$/,
 ];
 
+const ORGANIZATION_LEADING_LABELS_ = [
+  "差出人",
+  "発行者",
+  "送付元",
+  "発信元",
+  "宛先",
+];
+
 function isWeakIssuerLabel_(value) {
   var text = collapseWhitespace_(value);
 
@@ -148,6 +156,31 @@ function trimOrganizationCandidateSuffix_(value) {
   return collapseWhitespace_(trimmed);
 }
 
+function trimOrganizationCandidatePrefix_(value) {
+  var candidate = collapseWhitespace_(value);
+  var trimmed = candidate;
+  var changed = true;
+
+  while (changed) {
+    changed = false;
+
+    ORGANIZATION_LEADING_LABELS_.some(function(label) {
+      var pattern = new RegExp("^" + label + "\\s+");
+      var next = trimmed.replace(pattern, "");
+
+      if (next === trimmed) {
+        return false;
+      }
+
+      trimmed = next;
+      changed = true;
+      return true;
+    });
+  }
+
+  return trimmed;
+}
+
 function extractOrganizationCandidates_(value) {
   var text = collapseWhitespace_(value);
   var candidates = [];
@@ -171,7 +204,9 @@ function extractOrganizationCandidates_(value) {
   var match;
 
   while ((match = pattern.exec(text)) !== null) {
-    candidates.push(trimOrganizationCandidateSuffix_(match[1]));
+    candidates.push(
+      trimOrganizationCandidatePrefix_(trimOrganizationCandidateSuffix_(match[1])),
+    );
   }
 
   return dedupeOrderedParts_(candidates);
