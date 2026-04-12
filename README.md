@@ -98,11 +98,13 @@ bun run setup:remote
 - `removeScanRenameTriggers()`: 既存 trigger を削除
 - `migrateArchiveFolderStructure()`: 既存のアーカイブフォルダを旧構成（書類種別/発行元）から新構成（発行元(半角英数字へ正規化)/書類種別）へ移行
 - `normalizeArchiveIssuerNames()`: 既存の発行元フォルダ名、アーカイブ済みファイル名、ログの issuer 関連項目を半角英数字へ正規化
+- `correctArchiveIssuerFolders()`: 誤った発行元フォルダを本文や既存ログの強い候補に基づいて補正し、既存のアーカイブパスとファイル名も更新
 - `getScriptPropertiesTemplate()`: 設定キーのひな形を返す
 
 ## Notes
 
 - OCR テキストがほぼ取れない場合は `review_needed` で止めます。
+- AI の発行元候補が個人名や汎用ラベルでも、OCR・件名・要約に強い組織名があればその発行元へ補正します。
 - `review` では `ARCHIVE_ROOT_FOLDER_ID` 未設定でも候補パスの確認までは実行できます。
 - `review` で確認したファイルは、`rename` に切り替えた最初の実行で 1 回だけ再処理されます。
 - `rename` ではファイル名がすでに確定していても、未コピーなら共有アーカイブへコピーします。
