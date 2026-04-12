@@ -136,15 +136,28 @@ describe("buildArchiveRelativePath_", () => {
 
   test("uses normalized issuer in suggested file name and archive path", () => {
     const context = createAppsScriptContext({
-      files: ["src/utils.js", "src/filename.js", "src/archive.js"],
+      files: ["src/utils.js", "src/ai.js", "src/filename.js", "src/archive.js"],
     });
 
-    const suggestion = {
-      issuer: context.normalizeIssuerText_("パークホームズＬａＬａ新三郷管理組合"),
-      documentType: "請求書",
-      subject: "4月分",
-      documentDate: "2026-04-10",
-    };
+    const suggestion = context.normalizeAiSuggestion_(
+      {
+        issuer: "パークホームズＬａＬａ新三郷管理組合",
+        documentType: "請求書",
+        subject: "4月分",
+        documentDate: "2026-04-10",
+        summary: "4月分の請求書",
+        confidence: 0.96,
+      },
+      { name: "scan.pdf", createdAt: new Date("2026-04-10T00:00:00Z") },
+      {
+        timezone: "Asia/Tokyo",
+        maxIssuerLength: 50,
+        maxDocumentTypeLength: 30,
+        maxSubjectLength: 50,
+      },
+    );
+
+    expect(suggestion.issuer).toBe("パークホームズLaLa新三郷管理組合");
 
     expect(
       context.buildSuggestedFileName_(
