@@ -197,75 +197,83 @@ function normalizeArchiveIssuerNames() {
       return;
     }
 
-    var normalizedIssuer = normalizeIssuerText_(issuerFolder.title);
-    var destinationFolder = issuerFolder;
-    var issuerHadFailure = false;
+    try {
+      var normalizedIssuer = normalizeIssuerText_(issuerFolder.title);
+      var destinationFolder = issuerFolder;
+      var issuerHadFailure = false;
 
-    if (normalizedIssuer && normalizedIssuer !== issuerFolder.title) {
-      var existingFolder = findChildFolder_(archiveRootFolderId, normalizedIssuer);
+      if (normalizedIssuer && normalizedIssuer !== issuerFolder.title) {
+        var existingFolder = findChildFolder_(archiveRootFolderId, normalizedIssuer);
 
-      if (existingFolder) {
-        destinationFolder = existingFolder;
-        counts.mergedFolders += 1;
-      } else {
-        Drive.Files.patch({ title: normalizedIssuer }, issuerFolder.id, {
-          supportsAllDrives: true,
-        });
-        destinationFolder = { id: issuerFolder.id, title: normalizedIssuer };
-        counts.renamedFolders += 1;
-      }
-    }
-
-    listDirectChildFolders_(issuerFolder.id).forEach(function(documentTypeFolder) {
-      var destinationDocumentTypeFolder = ensureArchiveFolderByPath_(
-        archiveRootFolderId,
-        destinationFolder.title + "/" + documentTypeFolder.title,
-      );
-
-    listFilesInFolder_(documentTypeFolder.id).forEach(function(file) {
-        try {
-          var nextFileName = buildNormalizedArchiveFileName_(
-            file.title,
-            issuerFolder.title,
-            destinationFolder.title,
-          );
-
-          moveDriveFileToFolder_(file.id, destinationDocumentTypeFolder.id);
-
-          if (nextFileName !== file.title) {
-            Drive.Files.patch({ title: nextFileName }, file.id, {
-              supportsAllDrives: true,
-            });
-            counts.renamedFiles += 1;
-          }
-        } catch (error) {
-          issuerHadFailure = true;
-          counts.failedItems += 1;
-          errors.push({
-            source: "file:" + file.id,
-            message: getErrorMessage_(error),
+        if (existingFolder) {
+          destinationFolder = existingFolder;
+          counts.mergedFolders += 1;
+        } else {
+          Drive.Files.patch({ title: normalizedIssuer }, issuerFolder.id, {
+            supportsAllDrives: true,
           });
+          destinationFolder = { id: issuerFolder.id, title: normalizedIssuer };
+          counts.renamedFolders += 1;
+        }
+      }
+
+      listDirectChildFolders_(issuerFolder.id).forEach(function(documentTypeFolder) {
+        var destinationDocumentTypeFolder = ensureArchiveFolderByPath_(
+          archiveRootFolderId,
+          destinationFolder.title + "/" + documentTypeFolder.title,
+        );
+
+        listFilesInFolder_(documentTypeFolder.id).forEach(function(file) {
+          try {
+            var nextFileName = buildNormalizedArchiveFileName_(
+              file.title,
+              issuerFolder.title,
+              destinationFolder.title,
+            );
+
+            if (nextFileName !== file.title) {
+              Drive.Files.patch({ title: nextFileName }, file.id, {
+                supportsAllDrives: true,
+              });
+              counts.renamedFiles += 1;
+            }
+
+            moveDriveFileToFolder_(file.id, destinationDocumentTypeFolder.id);
+          } catch (error) {
+            issuerHadFailure = true;
+            counts.failedItems += 1;
+            errors.push({
+              source: "file:" + file.id,
+              message: getErrorMessage_(error),
+            });
+          }
+        });
+
+        try {
+          deleteEmptyFolder_(documentTypeFolder.id);
+        } catch (ignore) {
+          // Folder not empty or already deleted
         }
       });
 
-      try {
-        deleteEmptyFolder_(documentTypeFolder.id);
-      } catch (ignore) {
-        // Folder not empty or already deleted
+      if (destinationFolder.id !== issuerFolder.id) {
+        try {
+          deleteEmptyFolder_(issuerFolder.id);
+        } catch (ignore) {
+          // Folder not empty or already deleted
+        }
       }
-    });
 
-    if (destinationFolder.id !== issuerFolder.id) {
-      try {
-        deleteEmptyFolder_(issuerFolder.id);
-      } catch (ignore) {
-        // Folder not empty or already deleted
+      if (!issuerHadFailure) {
+        counts.updatedLogRows += normalizeIssuerRowsInLog_(issuerFolder.title, destinationFolder.title, config);
+        propertiesService.setProperty("lastNormalizedIssuerFolder", issuerFolder.title);
       }
-    }
-
-    if (!issuerHadFailure) {
-      counts.updatedLogRows += normalizeIssuerRowsInLog_(issuerFolder.title, destinationFolder.title, config);
-      propertiesService.setProperty("lastNormalizedIssuerFolder", issuerFolder.title);
+    } catch (error) {
+      counts.failedItems += 1;
+      errors.push({
+        source: "issuer:" + issuerFolder.id,
+        message: getErrorMessage_(error),
+      });
     }
   });
 
