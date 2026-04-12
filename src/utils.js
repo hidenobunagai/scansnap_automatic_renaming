@@ -86,15 +86,7 @@ function normalizeIsoDate_(value) {
     return "";
   }
 
-  if (Utilities && typeof Utilities.formatString === "function") {
-    return Utilities.formatString("%04d-%02d-%02d", year, month, day);
-  }
-
-  return [year, month, day]
-    .map(function(part, index) {
-      return String(part).padStart(index === 0 ? 4 : 2, "0");
-    })
-    .join("-");
+  return Utilities.formatString("%04d-%02d-%02d", year, month, day);
 }
 
 function normalizeConfidence_(value) {

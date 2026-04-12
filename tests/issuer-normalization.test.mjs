@@ -31,18 +31,6 @@ describe("normalizeAiSuggestion_", () => {
   test("normalizes issuer before truncating file segment", () => {
     const context = createAppsScriptContext({
       files: ["src/utils.js", "src/ai.js"],
-      globals: {
-        Utilities: {
-          formatDate() {
-            return "2026-04-10";
-          },
-        },
-        Session: {
-          getScriptTimeZone() {
-            return "Asia/Tokyo";
-          },
-        },
-      },
     });
 
     const result = context.normalizeAiSuggestion_(
