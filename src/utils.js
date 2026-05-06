@@ -1,5 +1,7 @@
 function collapseWhitespace_(value) {
-  return String(value || "").replace(/\s+/g, " ").trim();
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function stripPdfExtension_(value) {
@@ -38,13 +40,15 @@ function truncateFileSegment_(value, maxLength) {
 }
 
 function normalizeIssuerText_(value) {
-  return collapseWhitespace_(String(value || "").replace(/[\u3000\uFF01-\uFF5E]/g, function(char) {
-    if (char === "\u3000") {
-      return " ";
-    }
+  return collapseWhitespace_(
+    String(value || "").replace(/[\u3000\uFF01-\uFF5E]/g, function (char) {
+      if (char === "\u3000") {
+        return " ";
+      }
 
-    return String.fromCharCode(char.charCodeAt(0) - 0xFEE0);
-  }));
+      return String.fromCharCode(char.charCodeAt(0) - 0xfee0);
+    }),
+  );
 }
 
 const WEAK_ISSUER_LABELS_ = [
@@ -94,13 +98,10 @@ const ORGANIZATION_TRAILING_SUFFIX_PATTERNS_ = [
   /[0-9０-９]{1,2}月号$/,
 ];
 
-const ORGANIZATION_LEADING_LABELS_ = [
-  "差出人",
-  "発行者",
-  "送付元",
-  "発信元",
-  "宛先",
-];
+const ORGANIZATION_LEADING_LABELS_ = ["差出人", "発行者", "送付元", "発信元", "宛先"];
+
+var CLASS_NAME_PATTERN_ =
+  /^(?:[ぁ-んァ-ヶー\d０-９]+組$|[ぁ-んァ-ヶー\d０-９]+[ぐく]み$|[\d０-９]{1,2}年[\d０-９]{1,2}組$)/;
 
 function isWeakIssuerLabel_(value) {
   var text = collapseWhitespace_(value);
@@ -113,6 +114,10 @@ function isWeakIssuerLabel_(value) {
     return true;
   }
 
+  if (CLASS_NAME_PATTERN_.test(text)) {
+    return true;
+  }
+
   return false;
 }
 
@@ -120,7 +125,7 @@ function trimOrganizationCandidateSuffix_(value) {
   var candidate = collapseWhitespace_(value);
   var markerEnd = -1;
 
-  ORGANIZATION_MARKERS_.forEach(function(marker) {
+  ORGANIZATION_MARKERS_.forEach(function (marker) {
     var markerIndex = candidate.lastIndexOf(marker);
 
     if (markerIndex === -1) {
@@ -140,7 +145,7 @@ function trimOrganizationCandidateSuffix_(value) {
   while (changed) {
     changed = false;
 
-    ORGANIZATION_TRAILING_SUFFIX_PATTERNS_.some(function(pattern) {
+    ORGANIZATION_TRAILING_SUFFIX_PATTERNS_.some(function (pattern) {
       var next = trimmed.replace(pattern, "");
 
       if (next === trimmed || next.length < markerEnd) {
@@ -164,7 +169,7 @@ function trimOrganizationCandidatePrefix_(value) {
   while (changed) {
     changed = false;
 
-    ORGANIZATION_LEADING_LABELS_.some(function(label) {
+    ORGANIZATION_LEADING_LABELS_.some(function (label) {
       var pattern = new RegExp("^" + label + "\\s+");
       var next = trimmed.replace(pattern, "");
 
@@ -185,11 +190,12 @@ function trimOrganizationCandidateStart_(value) {
   var candidate = collapseWhitespace_(value);
   var markerIndex = -1;
   var marker = "";
-  var allowedLeadingCharacterPattern = /[A-Z0-9\u30A0-\u30FF\u3400-\u9FFF々ー・()（）.&'\-\uFF10-\uFF19\uFF21-\uFF3A\uFF41-\uFF5A\s]/i;
+  var allowedLeadingCharacterPattern =
+    /[A-Z0-9\u30A0-\u30FF\u3400-\u9FFF々ー・()（）.&'\-\uFF10-\uFF19\uFF21-\uFF3A\uFF41-\uFF5A\s]/i;
   var start = -1;
   var cursor;
 
-  ORGANIZATION_MARKERS_.forEach(function(currentMarker) {
+  ORGANIZATION_MARKERS_.forEach(function (currentMarker) {
     var index = candidate.indexOf(currentMarker);
 
     if (index === -1) {
@@ -228,9 +234,8 @@ function trimOrganizationCandidateStart_(value) {
 function extractOrganizationCandidates_(value) {
   var text = collapseWhitespace_(value);
   var candidates = [];
-  var markerPattern = ORGANIZATION_MARKERS_
-    .slice()
-    .sort(function(a, b) {
+  var markerPattern = ORGANIZATION_MARKERS_.slice()
+    .sort(function (a, b) {
       return b.length - a.length;
     })
     .join("|");
@@ -262,7 +267,7 @@ function dedupeOrderedParts_(parts) {
   const seen = {};
   const deduped = [];
 
-  parts.forEach(function(part) {
+  parts.forEach(function (part) {
     const normalized = String(part || "").toLowerCase();
 
     if (!part || seen[normalized]) {
@@ -278,7 +283,11 @@ function dedupeOrderedParts_(parts) {
 
 function formatDate_(dateValue, timezone) {
   const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
-  return Utilities.formatDate(date, timezone || Session.getScriptTimeZone() || "Asia/Tokyo", "yyyy-MM-dd");
+  return Utilities.formatDate(
+    date,
+    timezone || Session.getScriptTimeZone() || "Asia/Tokyo",
+    "yyyy-MM-dd",
+  );
 }
 
 function normalizeIsoDate_(value) {
@@ -315,7 +324,9 @@ function clampNumber_(value, min, max) {
 }
 
 function escapeDriveQueryValue_(value) {
-  return String(value || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  return String(value || "")
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'");
 }
 
 function getErrorMessage_(error) {

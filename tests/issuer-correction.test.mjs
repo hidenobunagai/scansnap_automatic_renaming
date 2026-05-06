@@ -19,6 +19,18 @@ describe("isWeakIssuerLabel_", () => {
     expect(context.isWeakIssuerLabel_("案内")).toBe(true);
   });
 
+  test("treats class names (組) as weak", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js"],
+    });
+
+    expect(context.isWeakIssuerLabel_("いけいけ1組")).toBe(true);
+    expect(context.isWeakIssuerLabel_("1年2組")).toBe(true);
+    expect(context.isWeakIssuerLabel_("３年１組")).toBe(true);
+    expect(context.isWeakIssuerLabel_("あおぞら1組")).toBe(true);
+    expect(context.isWeakIssuerLabel_("はなぐみ")).toBe(true);
+  });
+
   test("keeps concrete organization names as strong", () => {
     const context = createAppsScriptContext({
       files: ["src/utils.js"],
@@ -37,15 +49,11 @@ describe("extractOrganizationCandidates_", () => {
     });
 
     expect(
-      context.extractOrganizationCandidates_(
-        "桜小学校 学級だより 2026年4月号 保護者各位",
-      ),
+      context.extractOrganizationCandidates_("桜小学校 学級だより 2026年4月号 保護者各位"),
     ).toContain("桜小学校");
 
     expect(
-      context.extractOrganizationCandidates_(
-        "株式会社サンプル 請求書 ご請求金額 10,000円",
-      ),
+      context.extractOrganizationCandidates_("株式会社サンプル 請求書 ご請求金額 10,000円"),
     ).toContain("株式会社サンプル");
   });
 
@@ -70,9 +78,9 @@ describe("extractOrganizationCandidates_", () => {
       files: ["src/utils.js"],
     });
 
-    expect(
-      context.extractOrganizationCandidates_("株式会社サンプル請求書"),
-    ).toContain("株式会社サンプル");
+    expect(context.extractOrganizationCandidates_("株式会社サンプル請求書")).toContain(
+      "株式会社サンプル",
+    );
   });
 
   test("trims leading issuer labels before company candidates", () => {
@@ -80,9 +88,7 @@ describe("extractOrganizationCandidates_", () => {
       files: ["src/utils.js"],
     });
 
-    const candidates = context.extractOrganizationCandidates_(
-      "差出人 株式会社サンプル 請求書",
-    );
+    const candidates = context.extractOrganizationCandidates_("差出人 株式会社サンプル 請求書");
 
     expect(candidates).toContain("株式会社サンプル");
     expect(candidates).not.toContain("差出人 株式会社サンプル");
@@ -93,9 +99,7 @@ describe("extractOrganizationCandidates_", () => {
       files: ["src/utils.js"],
     });
 
-    const candidates = context.extractOrganizationCandidates_(
-      "本日は桜小学校からのお知らせです。",
-    );
+    const candidates = context.extractOrganizationCandidates_("本日は桜小学校からのお知らせです。");
 
     expect(candidates).toContain("桜小学校");
     expect(candidates).not.toContain("本日は桜小学校");
@@ -131,6 +135,42 @@ describe("correctIssuerSuggestion_", () => {
     );
 
     expect(corrected).toBe("桜小学校");
+  });
+
+  test("replaces class name issuer with school name from OCR text", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js", "src/ai.js"],
+    });
+
+    const corrected = context.correctIssuerSuggestion_(
+      {
+        issuer: "いけいけ1組",
+        documentType: "学級通信",
+        subject: "5月号",
+        summary: "桜小学校 いけいけ1組 学級通信",
+      },
+      "桜小学校 いけいけ1組 学級通信 5月号",
+    );
+
+    expect(corrected).toBe("桜小学校");
+  });
+
+  test("replaces class name issuer even with different school format (付属小学校)", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js", "src/ai.js"],
+    });
+
+    const corrected = context.correctIssuerSuggestion_(
+      {
+        issuer: "1年2組",
+        documentType: "学級だより",
+        subject: "4月号",
+        summary: "青葉大学付属小学校 学級だより",
+      },
+      "青葉大学付属小学校 1年2組 学級だより 4月号",
+    );
+
+    expect(corrected).toBe("青葉大学付属小学校");
   });
 
   test("keeps a legitimate kana issuer even when OCR contains an organization", () => {
