@@ -94,10 +94,10 @@ function updateIssuerFieldsInLogRow_(row, oldIssuer, normalizedIssuer) {
   }
 }
 
-function inferCorrectedIssuerForArchiveFolder_(issuerFolderName, signals) {
+function inferCorrectedIssuerForArchiveFolder_(issuerFolderName, signals, config) {
   var currentIssuer = normalizeIssuerText_(issuerFolderName);
 
-  if (!isWeakIssuerLabel_(currentIssuer)) {
+  if (!isWeakIssuerLabel_(currentIssuer, config)) {
     return currentIssuer;
   }
 
@@ -112,7 +112,7 @@ function inferCorrectedIssuerForArchiveFolder_(issuerFolderName, signals) {
   var strongCandidates = [];
 
   for (var i = 0; i < candidates.length; i++) {
-    if (!isWeakIssuerLabel_(candidates[i])) {
+    if (!isWeakIssuerLabel_(candidates[i], config)) {
       strongCandidates.push(candidates[i]);
     }
   }
@@ -450,6 +450,7 @@ function correctArchiveIssuerFolders() {
       var correctedIssuer = inferCorrectedIssuerForArchiveFolder_(
         issuerFolder.title,
         buildArchiveCorrectionSignals_(logRows, fileNames),
+        config,
       );
 
       if (!correctedIssuer || correctedIssuer === issuerFolder.title) {

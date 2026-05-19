@@ -174,6 +174,7 @@ function getScriptPropertiesTemplate() {
     `TRIGGER_MINUTES=${DEFAULTS_.triggerMinutes}`,
     `TIMEZONE=${DEFAULTS_.timezone}`,
     `FILENAME_PATTERN_HINT=${DEFAULTS_.filenamePatternHint}`,
+    "USER_WEAK_ISSUER_LABELS=",
     "LOG_SPREADSHEET_ID=",
   ].join("\n");
 }

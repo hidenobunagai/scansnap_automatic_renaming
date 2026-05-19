@@ -51,6 +51,18 @@ function callGeminiForRename_(prompt, config) {
         generationConfig: {
           temperature: 0.1,
           responseMimeType: "application/json",
+          responseSchema: {
+            type: "object",
+            properties: {
+              documentDate: { type: "string" },
+              issuer: { type: "string" },
+              documentType: { type: "string" },
+              subject: { type: "string" },
+              summary: { type: "string" },
+              confidence: { type: "number" }
+            },
+            required: ["documentDate", "issuer", "documentType", "subject", "summary", "confidence"]
+          }
         },
       }),
     },
@@ -129,10 +141,10 @@ function parseJsonObjectResponse_(content) {
   return JSON.parse(text.slice(start, end + 1));
 }
 
-function correctIssuerSuggestion_(payload, extractedText) {
+function correctIssuerSuggestion_(payload, extractedText, config) {
   var issuer = normalizeIssuerText_(payload.issuer);
 
-  if (!isWeakIssuerLabel_(issuer)) {
+  if (!isWeakIssuerLabel_(issuer, config)) {
     return issuer;
   }
 
@@ -162,7 +174,7 @@ function normalizeAiSuggestion_(payload, fileMeta, config, extractedText) {
   return {
     documentDate: normalizeIsoDate_(payload.documentDate) || fallbackDate,
     issuer: truncateFileSegment_(
-      correctIssuerSuggestion_(payload, extractedText),
+      correctIssuerSuggestion_(payload, extractedText, config),
       config.maxIssuerLength,
     ),
     documentType: truncateFileSegment_(payload.documentType, config.maxDocumentTypeLength),

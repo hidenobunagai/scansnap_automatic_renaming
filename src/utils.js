@@ -103,7 +103,7 @@ const ORGANIZATION_LEADING_LABELS_ = ["差出人", "発行者", "送付元", "�
 var CLASS_NAME_PATTERN_ =
   /^(?:[ぁ-んァ-ヶー\d０-９]+組$|[ぁ-んァ-ヶー\d０-９]+[ぐく]み$|[\d０-９]{1,2}年[\d０-９]{1,2}組$)/;
 
-function isWeakIssuerLabel_(value) {
+function isWeakIssuerLabel_(value, config) {
   var text = collapseWhitespace_(value);
 
   if (!text) {
@@ -112,6 +112,15 @@ function isWeakIssuerLabel_(value) {
 
   if (WEAK_ISSUER_LABELS_.indexOf(text) !== -1) {
     return true;
+  }
+
+  if (config && typeof config.userWeakIssuerLabels === "string" && config.userWeakIssuerLabels) {
+    var customLabels = config.userWeakIssuerLabels.split(",").map(function (label) {
+      return collapseWhitespace_(label);
+    });
+    if (customLabels.indexOf(text) !== -1) {
+      return true;
+    }
   }
 
   if (CLASS_NAME_PATTERN_.test(text)) {
