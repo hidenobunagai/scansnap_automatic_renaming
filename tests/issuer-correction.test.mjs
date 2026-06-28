@@ -244,6 +244,132 @@ describe("correctIssuerSuggestion_", () => {
 
     expect(corrected).toBe("東京電力株式会社");
   });
+
+  test("strips trailing weak label suffix from issuer (school + newsletter)", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js", "src/ai.js"],
+    });
+
+    const corrected = context.correctIssuerSuggestion_(
+      {
+        issuer: "桜小学校 学級だより",
+        documentType: "",
+        subject: "4月号",
+        summary: "桜小学校 学級だより 4月号",
+      },
+      "桜小学校 学級だより 4月号 保護者各位",
+    );
+
+    expect(corrected).toBe("桜小学校");
+  });
+
+  test("strips trailing weak label suffix with underscore separator", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js", "src/ai.js"],
+    });
+
+    const corrected = context.correctIssuerSuggestion_(
+      {
+        issuer: "桜小学校_学級だより",
+        documentType: "",
+        subject: "4月号",
+        summary: "桜小学校 学級だより 4月号",
+      },
+      "桜小学校 学級だより 4月号 保護者各位",
+    );
+
+    expect(corrected).toBe("桜小学校");
+  });
+
+  test("strips trailing weak label suffix with hyphen separator", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js", "src/ai.js"],
+    });
+
+    const corrected = context.correctIssuerSuggestion_(
+      {
+        issuer: "東京電力-お知らせ",
+        documentType: "",
+        subject: "4月分",
+        summary: "東京電力からのお知らせ",
+      },
+      "東京電力 お知らせ 4月分",
+    );
+
+    expect(corrected).toBe("東京電力");
+  });
+
+  test("expands truncated organization name ending mid-marker", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js", "src/ai.js"],
+    });
+
+    const corrected = context.correctIssuerSuggestion_(
+      {
+        issuer: "社会福祉法人慈恵",
+        documentType: "お知らせ",
+        subject: "4月号",
+        summary: "社会福祉法人慈恵会 お知らせ",
+      },
+      "社会福祉法人慈恵会 お知らせ 4月号",
+    );
+
+    expect(corrected).toBe("社会福祉法人慈恵会");
+  });
+
+  test("does not expand complete organization name that ends at marker boundary", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js", "src/ai.js"],
+    });
+
+    const corrected = context.correctIssuerSuggestion_(
+      {
+        issuer: "桜小学校",
+        documentType: "学級だより",
+        subject: "4月号",
+        summary: "桜小学校 学級だより",
+      },
+      "桜小学校 学級だより 4月号",
+    );
+
+    expect(corrected).toBe("桜小学校");
+  });
+
+  test("does not expand personal name without organization marker", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js", "src/ai.js"],
+    });
+
+    const corrected = context.correctIssuerSuggestion_(
+      {
+        issuer: "ながいげんた",
+        documentType: "おたより",
+        subject: "4月号",
+        summary: "桜小学校からのおたより",
+      },
+      "桜小学校 学級だより 4月号 ながいげんた",
+    );
+
+    expect(corrected).toBe("ながいげんた");
+  });
+
+  test("strips お知らせ suffix from organization name", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js", "src/ai.js"],
+    });
+
+    const corrected = context.correctIssuerSuggestion_(
+      {
+        issuer: "三郷市 お知らせ",
+        documentType: "",
+        subject: "ごみ収集",
+        summary: "三郷市からのお知らせ",
+      },
+      "三郷市 お知らせ ごみ収集日程",
+    );
+
+    expect(corrected).toBe("三郷市");
+  });
 });
 
 describe("normalizeAiSuggestion_", () => {

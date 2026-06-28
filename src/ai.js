@@ -59,10 +59,17 @@ function callGeminiForRename_(prompt, config) {
               documentType: { type: "string" },
               subject: { type: "string" },
               summary: { type: "string" },
-              confidence: { type: "number" }
+              confidence: { type: "number" },
             },
-            required: ["documentDate", "issuer", "documentType", "subject", "summary", "confidence"]
-          }
+            required: [
+              "documentDate",
+              "issuer",
+              "documentType",
+              "subject",
+              "summary",
+              "confidence",
+            ],
+          },
         },
       }),
     },
@@ -144,20 +151,97 @@ function parseJsonObjectResponse_(content) {
 function correctIssuerSuggestion_(payload, extractedText, config) {
   var issuer = normalizeIssuerText_(payload.issuer);
 
-  if (!isWeakIssuerLabel_(issuer, config)) {
+  if (!issuer) {
     return issuer;
   }
 
-  var candidates = dedupeOrderedParts_(
-    extractOrganizationCandidates_(extractedText || "")
-      .concat(extractOrganizationCandidates_(payload.subject || ""))
-      .concat(extractOrganizationCandidates_(payload.summary || ""))
-      .map(function (candidate) {
-        return normalizeIssuerText_(candidate);
-      }),
-  );
+  if (isWeakIssuerLabel_(issuer, config)) {
+    var candidates = dedupeOrderedParts_(
+      extractOrganizationCandidates_(extractedText || "")
+        .concat(extractOrganizationCandidates_(payload.subject || ""))
+        .concat(extractOrganizationCandidates_(payload.summary || ""))
+        .map(function (candidate) {
+          return normalizeIssuerText_(candidate);
+        }),
+    );
+    return candidates[0] || issuer;
+  }
 
-  return candidates[0] || issuer;
+  var stripped = stripTrailingWeakLabelSuffix_(issuer);
+  if (stripped !== issuer) {
+    return stripped;
+  }
+
+  var expanded = expandTruncatedOrganization_(issuer, extractedText, payload);
+  if (expanded !== issuer) {
+    return expanded;
+  }
+
+  return issuer;
+}
+
+function stripTrailingWeakLabelSuffix_(value) {
+  var text = collapseWhitespace_(String(value || ""));
+  if (!text) return value;
+
+  for (var i = 0; i < WEAK_ISSUER_LABELS_.length; i++) {
+    var label = WEAK_ISSUER_LABELS_[i];
+    var separators = ["-", "_", " "];
+
+    for (var j = 0; j < separators.length; j++) {
+      var suffix = separators[j] + label;
+
+      if (
+        text.length > suffix.length &&
+        text.lastIndexOf(suffix) === text.length - suffix.length
+      ) {
+        var prefix = text.slice(0, text.length - suffix.length);
+
+        if (prefix && !isWeakIssuerLabel_(prefix)) {
+          return prefix;
+        }
+      }
+    }
+  }
+
+  return value;
+}
+
+function expandTruncatedOrganization_(issuer, extractedText, payload) {
+  if (!issuer || endsAtMarkerBoundary_(issuer)) return issuer;
+
+  var text = [extractedText || "", payload.subject || "", payload.summary || ""].join(" ");
+  var candidates = extractOrganizationCandidates_(text);
+  var issuerNorm = normalizeIssuerText_(issuer);
+
+  for (var i = 0; i < candidates.length; i++) {
+    if (normalizeIssuerText_(candidates[i]) === issuerNorm) {
+      return issuer;
+    }
+  }
+
+  for (var i = 0; i < candidates.length; i++) {
+    var candidate = normalizeIssuerText_(candidates[i]);
+
+    if (candidate.length > issuerNorm.length && candidate.indexOf(issuerNorm) === 0) {
+      return candidate;
+    }
+  }
+
+  return issuer;
+}
+
+function endsAtMarkerBoundary_(value) {
+  for (var i = 0; i < ORGANIZATION_MARKERS_.length; i++) {
+    var marker = ORGANIZATION_MARKERS_[i];
+    var idx = value.lastIndexOf(marker);
+
+    if (idx !== -1 && idx + marker.length === value.length) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function normalizeAiSuggestion_(payload, fileMeta, config, extractedText) {
