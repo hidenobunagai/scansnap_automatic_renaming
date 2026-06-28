@@ -61,6 +61,7 @@ const WEAK_ISSUER_LABELS_ = [
   "学校",
   "幼稚園",
   "保護者",
+  "アンケート",
 ];
 
 const ORGANIZATION_MARKERS_ = [
