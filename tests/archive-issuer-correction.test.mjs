@@ -863,6 +863,111 @@ describe("correctArchiveIssuerFolders", () => {
     expect(updatedProperties.lastCorrectedIssuerFolder).toBeUndefined();
   });
 
+  test("corrects inverted hierarchy (first=weakLabel, second=orgName)", () => {
+    const firstLevelFolder = createFolderItem("issuer-weak", "アンケート", "archive-root");
+    const secondLevelFolder = createFolderItem("doc-org", "パークホームズLaLa新三郷管理組合", firstLevelFolder.id);
+    const file = createFileItem("file-1", "2026-04-10_アンケート_パークホームズLaLa新三郷管理組合_件名.pdf", secondLevelFolder.id);
+    const logValues = [[...LOG_HEADERS], [
+      "2026-04-10T00:00:00Z",
+      "file-1",
+      "renamed",
+      "scan.pdf",
+      "2026-04-10_アンケート_パークホームズLaLa新三郷管理組合_件名.pdf",
+      "2026-04-10_アンケート_パークホームズLaLa新三郷管理組合_件名.pdf",
+      0.99,
+      "2026-04-10",
+      "アンケート",
+      "パークホームズLaLa新三郷管理組合",
+      "",
+      "パークホームズLaLa新三郷管理組合からのアンケートです",
+      "",
+      "アンケート/パークホームズLaLa新三郷管理組合",
+      "2026-04-10_アンケート_パークホームズLaLa新三郷管理組合_件名.pdf",
+      "archived-file-id",
+    ]];
+    const setValuesCalls = [];
+
+    const { context, movedFiles, patchedFiles, removedFolders, updatedProperties } = createCorrectionContext({
+      listFolders(params, query) {
+        const parentId = query.match(/'([^']+)' in parents/)[1];
+        const titleMatch = query.match(/title = '([^']+)'/);
+        return {
+          items: [firstLevelFolder, secondLevelFolder].filter(function(item) {
+            if (item.mimeType !== "application/vnd.google-apps.folder" || item.parents[0].id !== parentId) {
+              return false;
+            }
+            if (titleMatch) {
+              return item.title === titleMatch[1];
+            }
+            return true;
+          }),
+        };
+      },
+      listFiles(params, query) {
+        const parentId = query.match(/'([^']+)' in parents/)[1];
+        if (params.maxResults === 1) {
+          return { items: [] };
+        }
+        return { items: parentId === secondLevelFolder.id ? [file] : [] };
+      },
+      getFile() {
+        return { parents: [secondLevelFolder.id] };
+      },
+      logSheet: createLogSheet(logValues, setValuesCalls),
+      insertFolder(resource) {
+        return {
+          id: `ensured-${resource.parents[0].id}-${resource.title}`,
+          title: resource.title,
+        };
+      },
+    });
+
+    const result = context.correctArchiveIssuerFolders();
+
+    expect(result.correctedFolders).toBe(1);
+    expect(result.skippedFolders).toBe(0);
+    expect(result.renamedFiles).toBe(1);
+    expect(result.updatedLogRows).toBe(1);
+
+    // File moved to orgName/weakLabel
+    expect(movedFiles).toContainEqual({
+      patchData: {},
+      fileId: "file-1",
+      params: {
+        addParents: "ensured-ensured-archive-root-パークホームズLaLa新三郷管理組合-アンケート",
+        removeParents: secondLevelFolder.id,
+        fields: "id,parents",
+        supportsAllDrives: true,
+      },
+    });
+
+    // File renamed: swapped issuer and docType
+    expect(patchedFiles).toContainEqual({
+      patchData: { title: "2026-04-10_パークホームズLaLa新三郷管理組合_アンケート_件名.pdf" },
+      fileId: "file-1",
+      params: { supportsAllDrives: true },
+    });
+
+    // Log updated: swapped segments
+    expect(setValuesCalls).toHaveLength(1);
+    expect(logValues[1][8]).toBe("パークホームズLaLa新三郷管理組合");
+    expect(logValues[1][13]).toBe("パークホームズLaLa新三郷管理組合/アンケート");
+    expect(logValues[1][14]).toBe("2026-04-10_パークホームズLaLa新三郷管理組合_アンケート_件名.pdf");
+
+    // Old empty folders removed
+    expect(removedFolders).toContainEqual({
+      fileId: secondLevelFolder.id,
+      params: { supportsAllDrives: true },
+    });
+    expect(removedFolders).toContainEqual({
+      fileId: firstLevelFolder.id,
+      params: { supportsAllDrives: true },
+    });
+
+    // Checkpoint set
+    expect(updatedProperties.lastCorrectedIssuerFolder).toBe("アンケート");
+  });
+
   test("continues after file-level correction failure without updating checkpoint", () => {
     const sourceFolder = createFolderItem("issuer-weak", "学級だより", "archive-root");
     const docTypeFolder = createFolderItem("doc-notice", "通知", sourceFolder.id);

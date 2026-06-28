@@ -5,11 +5,7 @@ const ARCHIVE_DEFAULTS_ = Object.freeze({
 
 function buildArchiveRelativePath_(suggestion, config) {
   return [
-    normalizeArchiveSegment_(
-      suggestion.issuer,
-      ARCHIVE_DEFAULTS_.issuer,
-      config.maxIssuerLength,
-    ),
+    normalizeArchiveSegment_(suggestion.issuer, ARCHIVE_DEFAULTS_.issuer, config.maxIssuerLength),
     normalizeArchiveSegment_(
       suggestion.documentType,
       ARCHIVE_DEFAULTS_.documentType,
@@ -48,7 +44,7 @@ function moveDriveFileToFolder_(fileId, folderId) {
     supportsAllDrives: true,
   });
   var previousParents = (file.parents || [])
-    .map(function(parent) {
+    .map(function (parent) {
       if (typeof parent === "string") {
         return parent;
       }
@@ -58,16 +54,12 @@ function moveDriveFileToFolder_(fileId, folderId) {
     .filter(Boolean)
     .join(",");
 
-  Drive.Files.patch(
-    {},
-    fileId,
-    {
-      addParents: folderId,
-      removeParents: previousParents,
-      fields: "id,parents",
-      supportsAllDrives: true,
-    },
-  );
+  Drive.Files.patch({}, fileId, {
+    addParents: folderId,
+    removeParents: previousParents,
+    fields: "id,parents",
+    supportsAllDrives: true,
+  });
 }
 
 function buildNormalizedArchiveFileName_(fileName, issuerFolderName, normalizedIssuerFolderName) {
@@ -106,7 +98,7 @@ function inferCorrectedIssuerForArchiveFolder_(issuerFolderName, signals, config
       .concat(extractOrganizationCandidates_(signals.subject || ""))
       .concat(extractOrganizationCandidates_(signals.summary || ""))
       .concat(extractOrganizationCandidates_(signals.fileNames || "")),
-  ).map(function(candidate) {
+  ).map(function (candidate) {
     return normalizeIssuerText_(stripPdfExtension_(candidate));
   });
   var strongCandidates = [];
@@ -119,20 +111,55 @@ function inferCorrectedIssuerForArchiveFolder_(issuerFolderName, signals, config
 
   strongCandidates = dedupeOrderedParts_(strongCandidates);
 
+  if (strongCandidates.length > 1) {
+    var minimal = [];
+
+    for (var i = 0; i < strongCandidates.length; i++) {
+      var isSuperset = false;
+
+      for (var j = 0; j < strongCandidates.length; j++) {
+        if (
+          i !== j &&
+          strongCandidates[i].indexOf(strongCandidates[j]) !== -1 &&
+          strongCandidates[i] !== strongCandidates[j]
+        ) {
+          isSuperset = true;
+          break;
+        }
+      }
+
+      if (!isSuperset) {
+        minimal.push(strongCandidates[i]);
+      }
+    }
+
+    strongCandidates = minimal.length > 0 ? minimal : strongCandidates;
+  }
+
   return strongCandidates.length === 1 ? strongCandidates[0] : "";
 }
 
 function buildArchiveCorrectionSignals_(logRows, fileNames) {
   return {
-    text: logRows.map(function(row) {
-      return [row[LOG_HEADER_INDEX_.issuer], row[LOG_HEADER_INDEX_.subject], row[LOG_HEADER_INDEX_.summary]].join(" ");
-    }).join(" "),
-    subject: logRows.map(function(row) {
-      return row[LOG_HEADER_INDEX_.subject] || "";
-    }).join(" "),
-    summary: logRows.map(function(row) {
-      return row[LOG_HEADER_INDEX_.summary] || "";
-    }).join(" "),
+    text: logRows
+      .map(function (row) {
+        return [
+          row[LOG_HEADER_INDEX_.issuer],
+          row[LOG_HEADER_INDEX_.subject],
+          row[LOG_HEADER_INDEX_.summary],
+        ].join(" ");
+      })
+      .join(" "),
+    subject: logRows
+      .map(function (row) {
+        return row[LOG_HEADER_INDEX_.subject] || "";
+      })
+      .join(" "),
+    summary: logRows
+      .map(function (row) {
+        return row[LOG_HEADER_INDEX_.summary] || "";
+      })
+      .join(" "),
     fileNames: fileNames.join(" "),
   };
 }
@@ -140,7 +167,7 @@ function buildArchiveCorrectionSignals_(logRows, fileNames) {
 function buildArchiveLogFileNameLookup_(archiveFileNames) {
   var lookup = {};
 
-  (archiveFileNames || []).forEach(function(fileName) {
+  (archiveFileNames || []).forEach(function (fileName) {
     var normalized = String(fileName || "");
 
     if (!normalized) {
@@ -163,17 +190,20 @@ function getIssuerLogRows_(issuerFolderName, archiveFileNames, config) {
     return [];
   }
 
-  return sheet.getRange(2, 1, lastRow - 1, LOG_HEADERS_.length).getValues().filter(function(row) {
-    if (String(row[LOG_HEADER_INDEX_.issuer] || "") !== issuerFolderName) {
-      return false;
-    }
+  return sheet
+    .getRange(2, 1, lastRow - 1, LOG_HEADERS_.length)
+    .getValues()
+    .filter(function (row) {
+      if (String(row[LOG_HEADER_INDEX_.issuer] || "") !== issuerFolderName) {
+        return false;
+      }
 
-    if (!archiveFileNames || !archiveFileNames.length) {
-      return true;
-    }
+      if (!archiveFileNames || !archiveFileNames.length) {
+        return true;
+      }
 
-    return Boolean(archiveFileNameLookup[String(row[LOG_HEADER_INDEX_.archiveFinalName] || "")]);
-  });
+      return Boolean(archiveFileNameLookup[String(row[LOG_HEADER_INDEX_.archiveFinalName] || "")]);
+    });
 }
 
 function correctIssuerRowsInLog_(oldIssuer, correctedIssuer, archiveFileNames, config) {
@@ -199,11 +229,117 @@ function correctIssuerRowsInLog_(oldIssuer, correctedIssuer, archiveFileNames, c
       continue;
     }
 
-    if (archiveFileNames && archiveFileNames.length && !archiveFileNameLookup[String(values[i][LOG_HEADER_INDEX_.archiveFinalName] || "")]) {
+    if (
+      archiveFileNames &&
+      archiveFileNames.length &&
+      !archiveFileNameLookup[String(values[i][LOG_HEADER_INDEX_.archiveFinalName] || "")]
+    ) {
       continue;
     }
 
     updateIssuerFieldsInLogRow_(values[i], oldIssuer, correctedIssuer);
+    updated += 1;
+  }
+
+  if (updated) {
+    range.setValues(values);
+  }
+
+  return updated;
+}
+
+function isInvertedArchiveHierarchy_(issuerFolderName, documentTypeFolders, config) {
+  if (!isWeakIssuerLabel_(issuerFolderName, config)) {
+    return false;
+  }
+
+  for (var i = 0; i < documentTypeFolders.length; i++) {
+    var name = documentTypeFolders[i].title;
+
+    for (var j = 0; j < ORGANIZATION_MARKERS_.length; j++) {
+      if (name.indexOf(ORGANIZATION_MARKERS_[j]) !== -1) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+function buildInvertedArchiveFileName_(fileName, correctedIssuer, oldIssuer) {
+  var name = String(fileName || "");
+  var extMatch = name.match(/^(.*)\.(\w+)$/);
+
+  if (!extMatch) return name;
+
+  var baseName = extMatch[1];
+  var ext = extMatch[2];
+  var segments = baseName.split("_");
+
+  if (segments.length < 3) return name;
+
+  segments[1] = correctedIssuer;
+  segments[2] = oldIssuer;
+
+  var result = segments.join("_") + "." + ext;
+  return result !== name ? result : name;
+}
+
+function correctInvertedIssuerRowsInLog_(oldIssuer, correctedIssuer, archiveFileNames, config) {
+  if (!oldIssuer || !correctedIssuer || oldIssuer === correctedIssuer) {
+    return 0;
+  }
+
+  var logState = getLogState_(config);
+  var sheet = logState.sheet;
+  var lastRow = sheet.getLastRow();
+  var archiveFileNameLookup = buildArchiveLogFileNameLookup_(archiveFileNames);
+
+  if (lastRow < 2) {
+    return 0;
+  }
+
+  var range = sheet.getRange(2, 1, lastRow - 1, LOG_HEADERS_.length);
+  var values = range.getValues();
+  var updated = 0;
+
+  for (var i = 0; i < values.length; i++) {
+    if (String(values[i][LOG_HEADER_INDEX_.issuer] || "") !== oldIssuer) {
+      continue;
+    }
+
+    if (
+      archiveFileNames &&
+      archiveFileNames.length &&
+      !archiveFileNameLookup[String(values[i][LOG_HEADER_INDEX_.archiveFinalName] || "")]
+    ) {
+      continue;
+    }
+
+    values[i][LOG_HEADER_INDEX_.issuer] = correctedIssuer;
+
+    var archivePath = String(values[i][LOG_HEADER_INDEX_.archiveRelativePath] || "");
+
+    if (archivePath) {
+      var segments = archivePath.split("/");
+
+      if (segments.length >= 2) {
+        segments[0] = correctedIssuer;
+        segments[1] = oldIssuer;
+        values[i][LOG_HEADER_INDEX_.archiveRelativePath] = segments.join("/");
+      }
+    }
+
+    var archiveFileName = String(values[i][LOG_HEADER_INDEX_.archiveFinalName] || "");
+
+    if (archiveFileName) {
+      values[i][LOG_HEADER_INDEX_.archiveFinalName] = buildInvertedArchiveFileName_(
+        archiveFileName,
+        correctedIssuer,
+        oldIssuer,
+      );
+    }
+
     updated += 1;
   }
 
@@ -229,7 +365,7 @@ function migrateArchiveFolderStructure() {
   };
   var errors = [];
 
-  documentTypeFolders.forEach(function(docTypeFolder) {
+  documentTypeFolders.forEach(function (docTypeFolder) {
     if (lastMigrated && docTypeFolder.title <= lastMigrated) {
       counts.skippedFolders += 1;
       return;
@@ -237,10 +373,10 @@ function migrateArchiveFolderStructure() {
 
     var issuerFolders = listDirectChildFolders_(docTypeFolder.id);
 
-    issuerFolders.forEach(function(issuerFolder) {
+    issuerFolders.forEach(function (issuerFolder) {
       var files = listFilesInFolder_(issuerFolder.id);
 
-      files.forEach(function(file) {
+      files.forEach(function (file) {
         try {
           var newPath = issuerFolder.title + "/" + docTypeFolder.title;
           var targetFolder = ensureArchiveFolderByPath_(archiveRootFolderId, newPath);
@@ -311,7 +447,7 @@ function normalizeArchiveIssuerNames() {
   };
   var errors = [];
 
-  issuerFolders.forEach(function(issuerFolder) {
+  issuerFolders.forEach(function (issuerFolder) {
     if (lastNormalized && issuerFolder.title <= lastNormalized) {
       counts.skippedFolders += 1;
       return;
@@ -337,13 +473,13 @@ function normalizeArchiveIssuerNames() {
         }
       }
 
-      listDirectChildFolders_(issuerFolder.id).forEach(function(documentTypeFolder) {
+      listDirectChildFolders_(issuerFolder.id).forEach(function (documentTypeFolder) {
         var destinationDocumentTypeFolder = ensureArchiveFolderByPath_(
           archiveRootFolderId,
           destinationFolder.title + "/" + documentTypeFolder.title,
         );
 
-        listFilesInFolder_(documentTypeFolder.id).forEach(function(file) {
+        listFilesInFolder_(documentTypeFolder.id).forEach(function (file) {
           try {
             var nextFileName = buildNormalizedArchiveFileName_(
               file.title,
@@ -385,7 +521,11 @@ function normalizeArchiveIssuerNames() {
       }
 
       if (!issuerHadFailure) {
-        counts.updatedLogRows += normalizeIssuerRowsInLog_(issuerFolder.title, destinationFolder.title, config);
+        counts.updatedLogRows += normalizeIssuerRowsInLog_(
+          issuerFolder.title,
+          destinationFolder.title,
+          config,
+        );
         propertiesService.setProperty("lastNormalizedIssuerFolder", issuerFolder.title);
       }
     } catch (error) {
@@ -428,7 +568,7 @@ function correctArchiveIssuerFolders() {
   };
   var errors = [];
 
-  issuerFolders.forEach(function(issuerFolder) {
+  issuerFolders.forEach(function (issuerFolder) {
     if (lastCorrected && issuerFolder.title <= lastCorrected) {
       counts.skippedFolders += 1;
       return;
@@ -439,8 +579,8 @@ function correctArchiveIssuerFolders() {
       var fileNames = [];
       var issuerHadFailure = false;
 
-      documentTypeFolders.forEach(function(documentTypeFolder) {
-        listFilesInFolder_(documentTypeFolder.id).forEach(function(file) {
+      documentTypeFolders.forEach(function (documentTypeFolder) {
+        listFilesInFolder_(documentTypeFolder.id).forEach(function (file) {
           fileNames.push(file.title);
         });
       });
@@ -458,22 +598,27 @@ function correctArchiveIssuerFolders() {
         return;
       }
 
+      var isInverted = isInvertedArchiveHierarchy_(issuerFolder.title, documentTypeFolders, config);
       var existingDestination = findChildFolder_(archiveRootFolderId, correctedIssuer);
-      var destinationFolder = existingDestination || ensureArchiveFolderByPath_(archiveRootFolderId, correctedIssuer);
+      var destinationFolder =
+        existingDestination || ensureArchiveFolderByPath_(archiveRootFolderId, correctedIssuer);
 
       if (existingDestination && existingDestination.id !== issuerFolder.id) {
         counts.mergedFolders += 1;
       }
 
-      documentTypeFolders.forEach(function(documentTypeFolder) {
+      documentTypeFolders.forEach(function (documentTypeFolder) {
+        var effectiveDocType = isInverted ? issuerFolder.title : documentTypeFolder.title;
         var destinationDocumentTypeFolder = ensureArchiveFolderByPath_(
           archiveRootFolderId,
-          correctedIssuer + "/" + documentTypeFolder.title,
+          correctedIssuer + "/" + effectiveDocType,
         );
 
-        listFilesInFolder_(documentTypeFolder.id).forEach(function(file) {
+        listFilesInFolder_(documentTypeFolder.id).forEach(function (file) {
           try {
-            var nextFileName = buildNormalizedArchiveFileName_(file.title, issuerFolder.title, correctedIssuer);
+            var nextFileName = isInverted
+              ? buildInvertedArchiveFileName_(file.title, correctedIssuer, issuerFolder.title)
+              : buildNormalizedArchiveFileName_(file.title, issuerFolder.title, correctedIssuer);
 
             if (nextFileName !== file.title) {
               Drive.Files.patch({ title: nextFileName }, file.id, { supportsAllDrives: true });
@@ -503,7 +648,9 @@ function correctArchiveIssuerFolders() {
       }
 
       if (!issuerHadFailure) {
-        counts.updatedLogRows += correctIssuerRowsInLog_(issuerFolder.title, correctedIssuer, fileNames, config);
+        counts.updatedLogRows += isInverted
+          ? correctInvertedIssuerRowsInLog_(issuerFolder.title, correctedIssuer, fileNames, config)
+          : correctIssuerRowsInLog_(issuerFolder.title, correctedIssuer, fileNames, config);
         counts.correctedFolders += 1;
         propertiesService.setProperty("lastCorrectedIssuerFolder", issuerFolder.title);
       }
@@ -550,7 +697,7 @@ function listDirectChildFolders_(parentFolderId) {
       supportsAllDrives: true,
     });
 
-    (response.items || []).forEach(function(item) {
+    (response.items || []).forEach(function (item) {
       folders.push({ id: item.id, title: item.title });
     });
 
@@ -561,7 +708,7 @@ function listDirectChildFolders_(parentFolderId) {
     }
   }
 
-  folders.sort(function(a, b) {
+  folders.sort(function (a, b) {
     if (a.title < b.title) {
       return -1;
     }
@@ -595,7 +742,7 @@ function listFilesInFolder_(folderId) {
       supportsAllDrives: true,
     });
 
-    (response.items || []).forEach(function(item) {
+    (response.items || []).forEach(function (item) {
       files.push({ id: item.id, title: item.title });
     });
 
@@ -610,10 +757,9 @@ function listFilesInFolder_(folderId) {
 }
 
 function deleteEmptyFolder_(folderId) {
-  var query = [
-    "'" + escapeDriveQueryValue_(folderId) + "' in parents",
-    "trashed = false",
-  ].join(" and ");
+  var query = ["'" + escapeDriveQueryValue_(folderId) + "' in parents", "trashed = false"].join(
+    " and ",
+  );
 
   var response = Drive.Files.list({
     q: query,
