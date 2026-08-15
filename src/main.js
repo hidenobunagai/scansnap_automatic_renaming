@@ -14,6 +14,7 @@ const WRITABLE_SCRIPT_PROPERTIES_ = Object.freeze([
   "TRIGGER_MINUTES",
   "TIMEZONE",
   "FILENAME_PATTERN_HINT",
+  "USER_WEAK_ISSUER_LABELS",
   "LOG_SPREADSHEET_ID",
   "LOG_SHEET_NAME",
   "MAX_PROMPT_CHARS",
@@ -54,7 +55,7 @@ function runScanRenameJob() {
   };
   const results = [];
 
-  candidates.forEach(function(fileMeta) {
+  candidates.forEach(function (fileMeta) {
     const result = processSinglePdfFile_(
       fileMeta,
       config,
@@ -112,7 +113,7 @@ function applyScanRenameScriptProperties(setupRequest) {
   const changedKeys = [];
   const clearedKeys = [];
 
-  WRITABLE_SCRIPT_PROPERTIES_.forEach(function(key) {
+  WRITABLE_SCRIPT_PROPERTIES_.forEach(function (key) {
     if (!Object.prototype.hasOwnProperty.call(request.properties, key)) {
       return;
     }
@@ -156,8 +157,7 @@ function bootstrapScanRenameProjectFromSettings(setupRequest) {
 
 function getScriptPropertiesTemplate() {
   const provider = DEFAULTS_.aiProvider;
-  const model =
-    provider === "gemini" ? DEFAULTS_.defaultGeminiModel : DEFAULTS_.defaultOpenAiModel;
+  const model = provider === "gemini" ? DEFAULTS_.defaultGeminiModel : DEFAULTS_.defaultOpenAiModel;
 
   return [
     "SCANSNAP_FOLDER_ID=",
@@ -165,6 +165,7 @@ function getScriptPropertiesTemplate() {
     `AI_PROVIDER=${provider}`,
     "GEMINI_API_KEY=",
     "OPENAI_API_KEY=",
+    "OPENAI_BASE_URL=",
     `AI_MODEL=${model}`,
     `RENAME_MODE=${DEFAULTS_.renameMode}`,
     `MIN_CONFIDENCE=${DEFAULTS_.minConfidence}`,
@@ -176,6 +177,11 @@ function getScriptPropertiesTemplate() {
     `FILENAME_PATTERN_HINT=${DEFAULTS_.filenamePatternHint}`,
     "USER_WEAK_ISSUER_LABELS=",
     "LOG_SPREADSHEET_ID=",
+    `LOG_SHEET_NAME=${DEFAULTS_.logSheetName}`,
+    `MAX_PROMPT_CHARS=${DEFAULTS_.maxPromptChars}`,
+    `MAX_SUBJECT_LENGTH=${DEFAULTS_.maxSubjectLength}`,
+    `MAX_ISSUER_LENGTH=${DEFAULTS_.maxIssuerLength}`,
+    `MAX_DOCUMENT_TYPE_LENGTH=${DEFAULTS_.maxDocumentTypeLength}`,
   ].join("\n");
 }
 
@@ -197,25 +203,21 @@ function processSinglePdfFile_(fileMeta, config, logSheet, fileState) {
     const extractedText = extractTextFromPdf_(fileMeta.id, config);
 
     if (extractedText.length < 20) {
-      return logProcessingResult_(
-        logSheet,
-        fileMeta,
-        {
-          status: "review_needed",
-          suggestedName: "",
-          finalName: "",
-          confidence: 0,
-          documentDate: "",
-          issuer: "",
-          documentType: "",
-          subject: "",
-          summary: "",
-          archiveRelativePath: "",
-          archiveFinalName: "",
-          archiveFileId: "",
-          errorMessage: "OCR returned too little text to build a reliable filename.",
-        },
-      );
+      return logProcessingResult_(logSheet, fileMeta, {
+        status: "review_needed",
+        suggestedName: "",
+        finalName: "",
+        confidence: 0,
+        documentDate: "",
+        issuer: "",
+        documentType: "",
+        subject: "",
+        summary: "",
+        archiveRelativePath: "",
+        archiveFinalName: "",
+        archiveFileId: "",
+        errorMessage: "OCR returned too little text to build a reliable filename.",
+      });
     }
 
     const suggestion = requestRenameSuggestion_(extractedText, fileMeta, config);
@@ -255,25 +257,21 @@ function processSinglePdfFile_(fileMeta, config, logSheet, fileState) {
         archiveFileId = archiveCopyResult.archiveFileId;
       } catch (error) {
         const message = getErrorMessage_(error);
-        const result = logProcessingResult_(
-          logSheet,
-          fileMeta,
-          {
-            status: "copy_failed",
-            suggestedName: suggestedName,
-            finalName: shouldRename ? suggestedName : "",
-            confidence: suggestion.confidence,
-            documentDate: suggestion.documentDate,
-            issuer: suggestion.issuer,
-            documentType: suggestion.documentType,
-            subject: suggestion.subject,
-            summary: suggestion.summary,
-            archiveRelativePath: archiveRelativePath,
-            archiveFinalName: archiveFinalName,
-            archiveFileId: "",
-            errorMessage: message,
-          },
-        );
+        const result = logProcessingResult_(logSheet, fileMeta, {
+          status: "copy_failed",
+          suggestedName: suggestedName,
+          finalName: shouldRename ? suggestedName : "",
+          confidence: suggestion.confidence,
+          documentDate: suggestion.documentDate,
+          issuer: suggestion.issuer,
+          documentType: suggestion.documentType,
+          subject: suggestion.subject,
+          summary: suggestion.summary,
+          archiveRelativePath: archiveRelativePath,
+          archiveFinalName: archiveFinalName,
+          archiveFileId: "",
+          errorMessage: message,
+        });
 
         logError_("Scan archive copy failed.", {
           fileId: fileMeta.id,
@@ -287,53 +285,45 @@ function processSinglePdfFile_(fileMeta, config, logSheet, fileState) {
       }
     }
 
-    return logProcessingResult_(
-      logSheet,
-      fileMeta,
-      {
-        status: status,
-        suggestedName: suggestedName,
-        finalName: shouldRename ? suggestedName : "",
-        confidence: suggestion.confidence,
-        documentDate: suggestion.documentDate,
-        issuer: suggestion.issuer,
-        documentType: suggestion.documentType,
-        subject: suggestion.subject,
-        summary: suggestion.summary,
-        archiveRelativePath: archiveRelativePath,
-        archiveFinalName: archiveFinalName,
-        archiveFileId: archiveFileId,
-        errorMessage: buildProcessingErrorMessage_(
-          status,
-          config,
-          suggestedName,
-          fileMeta.name,
-          suggestion.confidence,
-          shouldCopyToArchive,
-        ),
-      },
-    );
+    return logProcessingResult_(logSheet, fileMeta, {
+      status: status,
+      suggestedName: suggestedName,
+      finalName: shouldRename ? suggestedName : "",
+      confidence: suggestion.confidence,
+      documentDate: suggestion.documentDate,
+      issuer: suggestion.issuer,
+      documentType: suggestion.documentType,
+      subject: suggestion.subject,
+      summary: suggestion.summary,
+      archiveRelativePath: archiveRelativePath,
+      archiveFinalName: archiveFinalName,
+      archiveFileId: archiveFileId,
+      errorMessage: buildProcessingErrorMessage_(
+        status,
+        config,
+        suggestedName,
+        fileMeta.name,
+        suggestion.confidence,
+        shouldCopyToArchive,
+      ),
+    });
   } catch (error) {
     const message = getErrorMessage_(error);
-    const result = logProcessingResult_(
-      logSheet,
-      fileMeta,
-      {
-        status: "error",
-        suggestedName: "",
-        finalName: "",
-        confidence: 0,
-        documentDate: "",
-        issuer: "",
-        documentType: "",
-        subject: "",
-        summary: "",
-        archiveRelativePath: "",
-        archiveFinalName: "",
-        archiveFileId: "",
-        errorMessage: message,
-      },
-    );
+    const result = logProcessingResult_(logSheet, fileMeta, {
+      status: "error",
+      suggestedName: "",
+      finalName: "",
+      confidence: 0,
+      documentDate: "",
+      issuer: "",
+      documentType: "",
+      subject: "",
+      summary: "",
+      archiveRelativePath: "",
+      archiveFinalName: "",
+      archiveFileId: "",
+      errorMessage: message,
+    });
 
     logError_("Scan rename failed.", {
       fileId: fileMeta.id,
@@ -386,46 +376,38 @@ function retryArchiveCopyForFile_(fileMeta, retryState, config, logSheet) {
       { reuseExisting: true },
     );
 
-    return logProcessingResult_(
-      logSheet,
-      fileMeta,
-      {
-        status: retryState.status,
-        suggestedName: retryState.suggestedName,
-        finalName: retryState.finalName,
-        confidence: retryState.confidence,
-        documentDate: retryState.documentDate,
-        issuer: retryState.issuer,
-        documentType: retryState.documentType,
-        subject: retryState.subject,
-        summary: retryState.summary,
-        archiveRelativePath: retryState.archiveRelativePath,
-        archiveFinalName: archiveCopyResult.archiveFinalName,
-        archiveFileId: archiveCopyResult.archiveFileId,
-        errorMessage: "",
-      },
-    );
+    return logProcessingResult_(logSheet, fileMeta, {
+      status: retryState.status,
+      suggestedName: retryState.suggestedName,
+      finalName: retryState.finalName,
+      confidence: retryState.confidence,
+      documentDate: retryState.documentDate,
+      issuer: retryState.issuer,
+      documentType: retryState.documentType,
+      subject: retryState.subject,
+      summary: retryState.summary,
+      archiveRelativePath: retryState.archiveRelativePath,
+      archiveFinalName: archiveCopyResult.archiveFinalName,
+      archiveFileId: archiveCopyResult.archiveFileId,
+      errorMessage: "",
+    });
   } catch (error) {
     const message = getErrorMessage_(error);
-    const result = logProcessingResult_(
-      logSheet,
-      fileMeta,
-      {
-        status: "copy_failed",
-        suggestedName: retryState.suggestedName,
-        finalName: retryState.finalName,
-        confidence: retryState.confidence,
-        documentDate: retryState.documentDate,
-        issuer: retryState.issuer,
-        documentType: retryState.documentType,
-        subject: retryState.subject,
-        summary: retryState.summary,
-        archiveRelativePath: retryState.archiveRelativePath,
-        archiveFinalName: retryState.archiveFinalName,
-        archiveFileId: "",
-        errorMessage: message,
-      },
-    );
+    const result = logProcessingResult_(logSheet, fileMeta, {
+      status: "copy_failed",
+      suggestedName: retryState.suggestedName,
+      finalName: retryState.finalName,
+      confidence: retryState.confidence,
+      documentDate: retryState.documentDate,
+      issuer: retryState.issuer,
+      documentType: retryState.documentType,
+      subject: retryState.subject,
+      summary: retryState.summary,
+      archiveRelativePath: retryState.archiveRelativePath,
+      archiveFinalName: retryState.archiveFinalName,
+      archiveFileId: "",
+      errorMessage: message,
+    });
 
     logError_("Scan archive copy failed.", {
       fileId: fileMeta.id,
@@ -513,10 +495,7 @@ function copyFileToArchive_(
     }
   }
 
-  const archiveFinalName = ensureUniqueFileNameInFolder_(
-    archiveFolder.id,
-    sourceFileName,
-  );
+  const archiveFinalName = ensureUniqueFileNameInFolder_(archiveFolder.id, sourceFileName);
   const archiveFileId = String(
     (copyDriveFileToFolder_(fileMeta.id, archiveFolder.id, archiveFinalName) || {}).id || "",
   );
@@ -564,7 +543,7 @@ function logProcessingResult_(logSheet, fileMeta, result) {
 function removeScanRenameTriggers_() {
   let removed = 0;
 
-  ScriptApp.getProjectTriggers().forEach(function(trigger) {
+  ScriptApp.getProjectTriggers().forEach(function (trigger) {
     if (trigger.getHandlerFunction() !== "runScanRenameJob") {
       return;
     }
