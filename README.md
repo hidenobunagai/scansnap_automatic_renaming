@@ -69,6 +69,7 @@ bun run setup:remote
 | `AI_PROVIDER` | no | `gemini` | `gemini` または `openai`。未指定時は `gemini` |
 | `GEMINI_API_KEY` | provider=gemini | `AIza...` | Gemini を使う場合 |
 | `OPENAI_API_KEY` | provider=openai | `sk-...` | OpenAI を使う場合 |
+| `OPENAI_BASE_URL` | provider=openai | `https://api.openai.com/v1/chat/completions` | OpenAI 互換エンドポイント |
 | `AI_MODEL` | no | `gemini-3.1-flash-lite` | 未指定時は provider ごとの既定値 |
 | `RENAME_MODE` | no | `review` | `review` または `rename` |
 | `MIN_CONFIDENCE` | no | `0.75` | `rename` 時に自動確定する最低信頼度 |
@@ -78,13 +79,21 @@ bun run setup:remote
 | `TRIGGER_MINUTES` | no | `15` | `1, 5, 10, 15, 30` のいずれか |
 | `TIMEZONE` | no | `Asia/Tokyo` | 日付整形用 |
 | `FILENAME_PATTERN_HINT` | no | `YYYY-MM-DD_発行元_書類種別_要点` | AI に渡す命名ヒント |
+| `USER_WEAK_ISSUER_LABELS` | no | `お知らせ,アンケート` | AI の発行元候補が一致したら弱い発行元とみなし、本文の強い組織名へ補正する(カンマ区切り) |
 | `LOG_SPREADSHEET_ID` | no | `1XyZ...` | 未設定なら初回実行時に自動作成 |
+| `LOG_SHEET_NAME` | no | `scan_rename_log` | ログシート名 |
+| `MAX_PROMPT_CHARS` | no | `12000` | AI に渡す OCR テキストの最大文字数 |
+| `MAX_SUBJECT_LENGTH` | no | `40` | ファイル名の要点部分の最大長 |
+| `MAX_ISSUER_LENGTH` | no | `30` | ファイル名・フォルダ名の発行元部分の最大長 |
+| `MAX_DOCUMENT_TYPE_LENGTH` | no | `30` | ファイル名・フォルダ名の書類種別部分の最大長 |
 
 ## Local commands
 
 ```bash
 bun run env:init
 bun run check
+bun test
+bun run format
 bun run clasp:push
 bun run clasp:open
 bun run setup:remote
@@ -110,4 +119,6 @@ bun run setup:remote
 - `rename` ではファイル名がすでに確定していても、未コピーなら共有アーカイブへコピーします。
 - 共有先コピーに失敗したファイルは `copy_failed` で記録され、次回実行で再試行されます。
 - 再処理したいファイルは、ログシートから該当行を消して再実行してください。
+- Gemini API キーは URL クエリではなく `x-goog-api-key` ヘッダーで送信されます(ログやプロキシへの漏えいを防ぐため)。
+- `executionApi.access: ANYONE` は `clasp run`(`setup:remote`)に必須の設定です。ただし API Executable のデプロイ ID を知る任意の Google アカウントから関数を実行できてしまうため、デプロイ ID の公開・共有は避け、不要になったら `clasp undeploy` で削除してください。
 - 大きい PDF や画像中心の PDF が増えたら、OCR / AI 呼び出しだけ Cloud Run へ切り出すのが次の一手です。
