@@ -18,7 +18,7 @@ function listPendingPdfFiles_(config, fileStateMap) {
       supportsAllDrives: true,
     });
 
-    (response.items || []).forEach(function(item) {
+    (response.items || []).forEach(function (item) {
       const fileState = fileStateMap[item.id];
 
       if (candidates.length >= config.maxFilesPerRun || (fileState && fileState.processed)) {
@@ -54,13 +54,9 @@ function isFileStable_(fileMeta, stableMinutes) {
 }
 
 function renameDriveFile_(fileId, newTitle) {
-  Drive.Files.patch(
-    { title: newTitle },
-    fileId,
-    {
-      supportsAllDrives: true,
-    },
-  );
+  Drive.Files.patch({ title: newTitle }, fileId, {
+    supportsAllDrives: true,
+  });
 }
 
 function ensureArchiveFolderByPath_(rootFolderId, relativePath) {
@@ -73,19 +69,22 @@ function ensureArchiveFolderByPath_(rootFolderId, relativePath) {
     throw new Error("Archive path must include at least one folder segment.");
   }
 
-  return segments.reduce(function(parentState, segment) {
-    const folder = findOrCreateChildFolder_(parentState.id, segment);
-    const nextPath = parentState.path ? `${parentState.path}/${segment}` : segment;
+  return segments.reduce(
+    function (parentState, segment) {
+      const folder = findOrCreateChildFolder_(parentState.id, segment);
+      const nextPath = parentState.path ? `${parentState.path}/${segment}` : segment;
 
-    return {
-      id: folder.id,
-      title: folder.title,
-      path: nextPath,
-    };
-  }, {
-    id: rootFolderId,
-    path: "",
-  });
+      return {
+        id: folder.id,
+        title: folder.title,
+        path: nextPath,
+      };
+    },
+    {
+      id: rootFolderId,
+      path: "",
+    },
+  );
 }
 
 function ensureUniqueFileName_(folderId, proposedName, currentFileId) {
@@ -140,7 +139,7 @@ function findDriveFileByNameInFolder_(folderId, fileName, currentFileId) {
   });
 
   return (
-    (response.items || []).find(function(item) {
+    (response.items || []).find(function (item) {
       return !currentFileId || item.id !== currentFileId;
     }) || null
   );

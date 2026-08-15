@@ -88,8 +88,10 @@ function getConfig_() {
       parseNumberProperty_(properties, "TRIGGER_MINUTES", DEFAULTS_.triggerMinutes),
     ),
     userWeakIssuerLabels: getStringProperty_(properties, "USER_WEAK_ISSUER_LABELS", ""),
-    geminiApiKey: aiProvider === "gemini" ? requireStringProperty_(properties, "GEMINI_API_KEY") : "",
-    openAiApiKey: aiProvider === "openai" ? requireStringProperty_(properties, "OPENAI_API_KEY") : "",
+    geminiApiKey:
+      aiProvider === "gemini" ? requireStringProperty_(properties, "GEMINI_API_KEY") : "",
+    openAiApiKey:
+      aiProvider === "openai" ? requireStringProperty_(properties, "OPENAI_API_KEY") : "",
     openAiBaseUrl: getStringProperty_(
       properties,
       "OPENAI_BASE_URL",

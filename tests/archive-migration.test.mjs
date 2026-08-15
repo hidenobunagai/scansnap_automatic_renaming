@@ -2,9 +2,22 @@ import { describe, expect, test } from "bun:test";
 import { createAppsScriptContext } from "./helpers/apps-script-context.mjs";
 
 const LOG_HEADERS = [
-  "processedAt", "fileId", "status", "originalName", "suggestedName", "finalName",
-  "confidence", "documentDate", "issuer", "documentType", "subject", "summary",
-  "errorMessage", "archiveRelativePath", "archiveFinalName", "archiveFileId",
+  "processedAt",
+  "fileId",
+  "status",
+  "originalName",
+  "suggestedName",
+  "finalName",
+  "confidence",
+  "documentDate",
+  "issuer",
+  "documentType",
+  "subject",
+  "summary",
+  "errorMessage",
+  "archiveRelativePath",
+  "archiveFinalName",
+  "archiveFileId",
 ];
 
 function createMigrationContext(overrides = {}) {
@@ -41,7 +54,15 @@ function createMigrationContext(overrides = {}) {
   };
 
   const context = createAppsScriptContext({
-    files: ["src/utils.js", "src/archive.js", "src/config.js", "src/log-sheet.js", "src/main.js", "src/drive.js", "src/logger.js"],
+    files: [
+      "src/utils.js",
+      "src/archive.js",
+      "src/config.js",
+      "src/log-sheet.js",
+      "src/main.js",
+      "src/drive.js",
+      "src/logger.js",
+    ],
     globals: {
       PropertiesService: {
         getScriptProperties() {
@@ -51,15 +72,15 @@ function createMigrationContext(overrides = {}) {
       getScriptProperties_() {
         return scriptProperties;
       },
-        Drive: {
-          Files: {
-            list(params) {
-              const query = params.q;
-              if (query.indexOf("mimeType = 'application/vnd.google-apps.folder'") !== -1) {
-                return overrides.listFolders ? overrides.listFolders(params, query) : { items: [] };
-              }
-              return overrides.listFiles ? overrides.listFiles(params, query) : { items: [] };
-            },
+      Drive: {
+        Files: {
+          list(params) {
+            const query = params.q;
+            if (query.indexOf("mimeType = 'application/vnd.google-apps.folder'") !== -1) {
+              return overrides.listFolders ? overrides.listFolders(params, query) : { items: [] };
+            }
+            return overrides.listFiles ? overrides.listFiles(params, query) : { items: [] };
+          },
           get(fileId, params) {
             driveGetCalls.push({ fileId, params });
             if (overrides.getFile) {
@@ -92,29 +113,43 @@ function createMigrationContext(overrides = {}) {
       SpreadsheetApp: {
         openById(id) {
           return {
-            getId() { return id; },
+            getId() {
+              return id;
+            },
             getSheetByName() {
-              return overrides.logSheet || {
-                getLastRow() { return 1; },
-                getRange() {
-                  return {
-                    getValues() {
-                      return [LOG_HEADERS];
-                    },
-                    setValues() {},
-                  };
-                },
-                setFrozenRows() {},
-                autoResizeColumns() {},
-              };
+              return (
+                overrides.logSheet || {
+                  getLastRow() {
+                    return 1;
+                  },
+                  getRange() {
+                    return {
+                      getValues() {
+                        return [LOG_HEADERS];
+                      },
+                      setValues() {},
+                    };
+                  },
+                  setFrozenRows() {},
+                  autoResizeColumns() {},
+                }
+              );
             },
           };
         },
         create(name) {
           return {
-            getId() { return "new-spreadsheet-id"; },
+            getId() {
+              return "new-spreadsheet-id";
+            },
             getSheets() {
-              return [{ setName() { return this; } }];
+              return [
+                {
+                  setName() {
+                    return this;
+                  },
+                },
+              ];
             },
           };
         },
@@ -199,9 +234,11 @@ describe("listDirectChildFolders_", () => {
 
     const folders = context.listDirectChildFolders_("parent-folder");
 
-    expect(folders.map(function(folder) {
-      return folder.title;
-    })).toEqual(["A", "B", "C"]);
+    expect(
+      folders.map(function (folder) {
+        return folder.title;
+      }),
+    ).toEqual(["A", "B", "C"]);
   });
 });
 
@@ -244,9 +281,7 @@ describe("moveDriveFileToFolder_", () => {
           Files: {
             get() {
               return {
-                parents: [
-                  { id: "old-parent-id", isRoot: false },
-                ],
+                parents: [{ id: "old-parent-id", isRoot: false }],
               };
             },
             patch(patchData, fileId, params) {
@@ -282,26 +317,27 @@ describe("migrateArchiveFolderStructure", () => {
       createFileItem("file-tokyo-receipt", "2026-03-01_東京電力_領収書_1月.pdf", tokyoFolderId),
     ];
 
-    const logValues = [[
-      ...LOG_HEADERS,
-    ], [
-      "2026-03-01T00:00:00Z",
-      "file-tokyo-receipt",
-      "renamed",
-      "scan.pdf",
-      "2026-03-01_東京電力_領収書_1月.pdf",
-      "2026-03-01_東京電力_領収書_1月.pdf",
-      0.99,
-      "2026-03-01",
-      "東京電力",
-      "領収書",
-      "1月分",
-      "summary",
-      "",
-      "領収書/東京電力",
-      "2026-03-01_東京電力_領収書_1月.pdf",
-      "archived-file-id",
-    ]];
+    const logValues = [
+      [...LOG_HEADERS],
+      [
+        "2026-03-01T00:00:00Z",
+        "file-tokyo-receipt",
+        "renamed",
+        "scan.pdf",
+        "2026-03-01_東京電力_領収書_1月.pdf",
+        "2026-03-01_東京電力_領収書_1月.pdf",
+        0.99,
+        "2026-03-01",
+        "東京電力",
+        "領収書",
+        "1月分",
+        "summary",
+        "",
+        "領収書/東京電力",
+        "2026-03-01_東京電力_領収書_1月.pdf",
+        "archived-file-id",
+      ],
+    ];
     const setValuesCalls = [];
 
     const migration = createMigrationContext({
@@ -309,8 +345,11 @@ describe("migrateArchiveFolderStructure", () => {
         const parentId = query.match(/'([^']+)' in parents/)[1];
         const titleMatch = query.match(/title = '([^']+)'/);
         return {
-          items: items.filter(function(item) {
-            if (item.parents[0].id !== parentId || item.mimeType !== "application/vnd.google-apps.folder") {
+          items: items.filter(function (item) {
+            if (
+              item.parents[0].id !== parentId ||
+              item.mimeType !== "application/vnd.google-apps.folder"
+            ) {
               return false;
             }
 
@@ -324,9 +363,10 @@ describe("migrateArchiveFolderStructure", () => {
       },
       listFiles(params, query) {
         const parentId = query.match(/'([^']+)' in parents/)[1];
-        const isFilesOnly = query.indexOf("mimeType != 'application/vnd.google-apps.folder'") !== -1;
+        const isFilesOnly =
+          query.indexOf("mimeType != 'application/vnd.google-apps.folder'") !== -1;
         return {
-          items: items.filter(function(item) {
+          items: items.filter(function (item) {
             if (item.parents[0].id !== parentId) {
               return false;
             }
@@ -340,17 +380,17 @@ describe("migrateArchiveFolderStructure", () => {
         };
       },
       getFile(fileId) {
-        const file = items.find(function(item) {
+        const file = items.find(function (item) {
           return item.id === fileId;
         });
         return {
-          parents: file.parents.map(function(parent) {
+          parents: file.parents.map(function (parent) {
             return parent.id;
           }),
         };
       },
       patchFile(patchData, fileId, params) {
-        const file = items.find(function(item) {
+        const file = items.find(function (item) {
           return item.id === fileId;
         });
         file.parents = [{ id: params.addParents }];
@@ -365,7 +405,7 @@ describe("migrateArchiveFolderStructure", () => {
         return createdFolder;
       },
       removeFolder(fileId) {
-        const index = items.findIndex(function(item) {
+        const index = items.findIndex(function (item) {
           return item.id === fileId;
         });
 
@@ -374,21 +414,29 @@ describe("migrateArchiveFolderStructure", () => {
         }
       },
       logSheet: {
-        getLastRow() { return logValues.length; },
+        getLastRow() {
+          return logValues.length;
+        },
         getRange() {
           return {
             getValues() {
-              return logValues.map(function(row) {
+              return logValues.map(function (row) {
                 return row.slice();
               });
             },
             setValues(values) {
-              setValuesCalls.push(values.map(function(row) {
-                return row.slice();
-              }));
-              logValues.splice(0, logValues.length, ...values.map(function(row) {
-                return row.slice();
-              }));
+              setValuesCalls.push(
+                values.map(function (row) {
+                  return row.slice();
+                }),
+              );
+              logValues.splice(
+                0,
+                logValues.length,
+                ...values.map(function (row) {
+                  return row.slice();
+                }),
+              );
             },
           };
         },
@@ -415,7 +463,14 @@ describe("migrateArchiveFolderStructure", () => {
       },
     });
 
-    const { context, archivedFiles, deletedFolders, driveGetCalls, updatedProperties, deletedProperties } = migration;
+    const {
+      context,
+      archivedFiles,
+      deletedFolders,
+      driveGetCalls,
+      updatedProperties,
+      deletedProperties,
+    } = migration;
 
     const result = context.migrateArchiveFolderStructure();
 
@@ -423,9 +478,11 @@ describe("migrateArchiveFolderStructure", () => {
     expect(result.failedFiles).toBe(0);
     expect(result.errors).toHaveLength(0);
     expect(result.logPathsMigrated).toBe(true);
-    expect(archivedFiles.map(function(file) {
-      return file.fileId;
-    })).toEqual(["file-city-invoice", "file-tokyo-receipt"]);
+    expect(
+      archivedFiles.map(function (file) {
+        return file.fileId;
+      }),
+    ).toEqual(["file-city-invoice", "file-tokyo-receipt"]);
     expect(archivedFiles).toEqual([
       {
         fileId: "file-city-invoice",
@@ -458,12 +515,7 @@ describe("migrateArchiveFolderStructure", () => {
         params: { fields: "parents", supportsAllDrives: true },
       },
     ]);
-    expect(deletedFolders).toEqual([
-      cityFolderId,
-      invoiceFolderId,
-      tokyoFolderId,
-      receiptFolderId,
-    ]);
+    expect(deletedFolders).toEqual([cityFolderId, invoiceFolderId, tokyoFolderId, receiptFolderId]);
     expect(updatedProperties.lastMigratedDocumentType).toBe("領収書");
     expect(deletedProperties).toContain("lastMigratedDocumentType");
     expect(setValuesCalls).toHaveLength(1);
@@ -474,26 +526,27 @@ describe("migrateArchiveFolderStructure", () => {
   test("skips log path migration when a file move fails", () => {
     const docTypeFolderId = "folder-receipt";
     const issuerFolderId = "folder-tokyo-power";
-    const logValues = [[
-      ...LOG_HEADERS,
-    ], [
-      "2026-03-01T00:00:00Z",
-      "file-fails",
-      "renamed",
-      "scan.pdf",
-      "2026-03-01_東京電力_領収書_1月.pdf",
-      "2026-03-01_東京電力_領収書_1月.pdf",
-      0.99,
-      "2026-03-01",
-      "東京電力",
-      "領収書",
-      "1月分",
-      "summary",
-      "",
-      "領収書/東京電力",
-      "2026-03-01_東京電力_領収書_1月.pdf",
-      "archived-file-id",
-    ]];
+    const logValues = [
+      [...LOG_HEADERS],
+      [
+        "2026-03-01T00:00:00Z",
+        "file-fails",
+        "renamed",
+        "scan.pdf",
+        "2026-03-01_東京電力_領収書_1月.pdf",
+        "2026-03-01_東京電力_領収書_1月.pdf",
+        0.99,
+        "2026-03-01",
+        "東京電力",
+        "領収書",
+        "1月分",
+        "summary",
+        "",
+        "領収書/東京電力",
+        "2026-03-01_東京電力_領収書_1月.pdf",
+        "archived-file-id",
+      ],
+    ];
     const setValuesCalls = [];
 
     const { context } = createMigrationContext({
@@ -515,7 +568,9 @@ describe("migrateArchiveFolderStructure", () => {
       listFiles(params, query) {
         if (query.indexOf(issuerFolderId) !== -1) {
           return {
-            items: [createFileItem("file-fails", "2026-03-01_東京電力_領収書_1月.pdf", issuerFolderId)],
+            items: [
+              createFileItem("file-fails", "2026-03-01_東京電力_領収書_1月.pdf", issuerFolderId),
+            ],
           };
         }
 
@@ -527,24 +582,36 @@ describe("migrateArchiveFolderStructure", () => {
         }
       },
       insertFolder(resource) {
-        return createFolderItem(`new-${resource.parents[0].id}-${resource.title}`, resource.title, resource.parents[0].id);
+        return createFolderItem(
+          `new-${resource.parents[0].id}-${resource.title}`,
+          resource.title,
+          resource.parents[0].id,
+        );
       },
       logSheet: {
-        getLastRow() { return logValues.length; },
+        getLastRow() {
+          return logValues.length;
+        },
         getRange() {
           return {
             getValues() {
-              return logValues.map(function(row) {
+              return logValues.map(function (row) {
                 return row.slice();
               });
             },
             setValues(values) {
-              setValuesCalls.push(values.map(function(row) {
-                return row.slice();
-              }));
-              logValues.splice(0, logValues.length, ...values.map(function(row) {
-                return row.slice();
-              }));
+              setValuesCalls.push(
+                values.map(function (row) {
+                  return row.slice();
+                }),
+              );
+              logValues.splice(
+                0,
+                logValues.length,
+                ...values.map(function (row) {
+                  return row.slice();
+                }),
+              );
             },
           };
         },
@@ -572,7 +639,10 @@ describe("migrateArchiveFolderStructure", () => {
     const { context } = createMigrationContext({
       lastMigratedDocumentType: "B",
       listFolders(params, query) {
-        if (query.indexOf("archive-root") !== -1 && query.indexOf("application/vnd.google-apps.folder") !== -1) {
+        if (
+          query.indexOf("archive-root") !== -1 &&
+          query.indexOf("application/vnd.google-apps.folder") !== -1
+        ) {
           if (query.indexOf("folder-") === -1) {
             return {
               items: [
@@ -586,8 +656,12 @@ describe("migrateArchiveFolderStructure", () => {
         return { items: [] };
       },
       globals: {
-        findOrCreateChildFolder_() { return { id: "new-folder", title: "test" }; },
-        ensureArchiveFolderByPath_() { return { id: "new-folder", title: "test", path: "test" }; },
+        findOrCreateChildFolder_() {
+          return { id: "new-folder", title: "test" };
+        },
+        ensureArchiveFolderByPath_() {
+          return { id: "new-folder", title: "test", path: "test" };
+        },
         logInfo_() {},
         logError_() {},
       },
@@ -612,37 +686,47 @@ describe("migrateArchiveFolderStructure", () => {
       listFolders(params, query) {
         const parentId = query.match(/'([^']+)' in parents/)[1];
         return {
-          items: items.filter(function(item) {
-            return item.parents[0].id === parentId && item.mimeType === "application/vnd.google-apps.folder";
+          items: items.filter(function (item) {
+            return (
+              item.parents[0].id === parentId &&
+              item.mimeType === "application/vnd.google-apps.folder"
+            );
           }),
         };
       },
       listFiles(params, query) {
         const parentId = query.match(/'([^']+)' in parents/)[1];
         return {
-          items: items.filter(function(item) {
-            return item.parents[0].id === parentId && item.mimeType !== "application/vnd.google-apps.folder";
+          items: items.filter(function (item) {
+            return (
+              item.parents[0].id === parentId &&
+              item.mimeType !== "application/vnd.google-apps.folder"
+            );
           }),
         };
       },
       getFile(fileId) {
-        const file = items.find(function(item) {
+        const file = items.find(function (item) {
           return item.id === fileId;
         });
         return {
-          parents: file.parents.map(function(parent) {
+          parents: file.parents.map(function (parent) {
             return parent.id;
           }),
         };
       },
       patchFile(patchData, fileId, params) {
-        const file = items.find(function(item) {
+        const file = items.find(function (item) {
           return item.id === fileId;
         });
         file.parents = [{ id: params.addParents }];
       },
       insertFolder(resource) {
-        return createFolderItem(`new-${resource.parents[0].id}-${resource.title}`, resource.title, resource.parents[0].id);
+        return createFolderItem(
+          `new-${resource.parents[0].id}-${resource.title}`,
+          resource.title,
+          resource.parents[0].id,
+        );
       },
       globals: {
         ensureArchiveFolderByPath_() {
@@ -657,7 +741,7 @@ describe("migrateArchiveFolderStructure", () => {
       },
     });
 
-    expect(function() {
+    expect(function () {
       migration.context.migrateArchiveFolderStructure();
     }).toThrow("log write failed");
     expect(migration.updatedProperties.lastMigratedDocumentType).toBe("領収書");

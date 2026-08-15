@@ -72,7 +72,7 @@ function ensureLogSpreadsheetId_(config) {
 function ensureLogHeaders_(sheet) {
   const range = sheet.getRange(1, 1, 1, LOG_HEADERS_.length);
   const currentHeaders = range.getValues()[0];
-  const needsReset = LOG_HEADERS_.some(function(header, index) {
+  const needsReset = LOG_HEADERS_.some(function (header, index) {
     return currentHeaders[index] !== header;
   });
 
@@ -95,7 +95,7 @@ function getFileStateMap_(sheet, renameMode) {
   const values = sheet.getRange(2, 1, lastRow - 1, LOG_HEADERS_.length).getValues();
   const fileStateMap = {};
 
-  values.forEach(function(row) {
+  values.forEach(function (row) {
     const entry = parseLogRow_(row);
 
     if (!entry.fileId) {

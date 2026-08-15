@@ -1,0 +1,8 @@
+.env
+.env.*
+.env.keys
+.clasp.json
+client_secret.json
+node_modules
+docs/
+.git/

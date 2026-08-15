@@ -63,9 +63,8 @@ describe("extractOrganizationCandidates_", () => {
     });
 
     const schoolCandidates = context.extractOrganizationCandidates_("桜小学校4月号");
-    const publicBodyCandidates = context.extractOrganizationCandidates_(
-      "渋谷区教育委員会定例会資料",
-    );
+    const publicBodyCandidates =
+      context.extractOrganizationCandidates_("渋谷区教育委員会定例会資料");
 
     expect(schoolCandidates).toContain("桜小学校");
     expect(schoolCandidates).not.toContain("桜小学校4月号");

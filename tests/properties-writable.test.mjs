@@ -101,7 +101,9 @@ describe("applyScanRenameScriptProperties_", () => {
     });
 
     expect(summary.clearedKeys).toContain("USER_WEAK_ISSUER_LABELS");
-    expect(propertiesService.getScriptProperties().getProperty("USER_WEAK_ISSUER_LABELS")).toBeNull();
+    expect(
+      propertiesService.getScriptProperties().getProperty("USER_WEAK_ISSUER_LABELS"),
+    ).toBeNull();
   });
 });
 

@@ -194,10 +194,7 @@ function stripTrailingWeakLabelSuffix_(value) {
     for (var j = 0; j < separators.length; j++) {
       var suffix = separators[j] + label;
 
-      if (
-        text.length > suffix.length &&
-        text.lastIndexOf(suffix) === text.length - suffix.length
-      ) {
+      if (text.length > suffix.length && text.lastIndexOf(suffix) === text.length - suffix.length) {
         var prefix = text.slice(0, text.length - suffix.length);
 
         if (prefix && !isWeakIssuerLabel_(prefix)) {

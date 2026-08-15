@@ -6,7 +6,7 @@ function buildSuggestedFileName_(suggestion, fileMeta, config) {
       truncateFileSegment_(suggestion.issuer, config.maxIssuerLength),
       truncateFileSegment_(suggestion.documentType, config.maxDocumentTypeLength),
       truncateFileSegment_(suggestion.subject, config.maxSubjectLength),
-    ].filter(function(part) {
+    ].filter(function (part) {
       return Boolean(part);
     }),
   );

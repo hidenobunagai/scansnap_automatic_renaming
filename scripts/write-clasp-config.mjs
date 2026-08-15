@@ -4,7 +4,9 @@ import { resolve } from "node:path";
 const scriptId = process.env.CLASP_SCRIPT_ID?.trim();
 
 if (!scriptId) {
-  throw new Error("CLASP_SCRIPT_ID is missing. Set it with `dotenvx set CLASP_SCRIPT_ID your-script-id`.");
+  throw new Error(
+    "CLASP_SCRIPT_ID is missing. Set it with `dotenvx set CLASP_SCRIPT_ID your-script-id`.",
+  );
 }
 
 const projectId = process.env.CLASP_PROJECT_ID?.trim();

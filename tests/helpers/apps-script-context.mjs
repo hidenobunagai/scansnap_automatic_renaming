@@ -13,7 +13,7 @@ function padNumber(value, width) {
 function formatString(template, ...args) {
   let index = 0;
 
-  return template.replace(/%0?(\d*)d/g, function(match, width) {
+  return template.replace(/%0?(\d*)d/g, function (match, width) {
     const value = Number(args[index]);
     index += 1;
 
@@ -32,16 +32,18 @@ function formatDate(dateValue, timezone) {
     month: "2-digit",
     day: "2-digit",
   });
-  const parts = formatter.formatToParts(dateValue instanceof Date ? dateValue : new Date(dateValue));
+  const parts = formatter.formatToParts(
+    dateValue instanceof Date ? dateValue : new Date(dateValue),
+  );
 
   return [
-    parts.find(function(part) {
+    parts.find(function (part) {
       return part.type === "year";
     }).value,
-    parts.find(function(part) {
+    parts.find(function (part) {
       return part.type === "month";
     }).value,
-    parts.find(function(part) {
+    parts.find(function (part) {
       return part.type === "day";
     }).value,
   ].join("-");
@@ -77,7 +79,7 @@ export function createAppsScriptContext({ files = [], globals = {} } = {}) {
     ...globals,
   });
 
-  files.forEach(function(relativePath) {
+  files.forEach(function (relativePath) {
     const absolutePath = resolve(PROJECT_ROOT, relativePath);
 
     if (!existsSync(absolutePath)) {

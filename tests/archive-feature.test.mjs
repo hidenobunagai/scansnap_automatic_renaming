@@ -173,13 +173,10 @@ describe("buildArchiveRelativePath_", () => {
     ).toContain("パークホームズLaLa新三郷管理組合");
 
     expect(
-      context.buildArchiveRelativePath_(
-        suggestion,
-        {
-          maxIssuerLength: 50,
-          maxDocumentTypeLength: 30,
-        },
-      ),
+      context.buildArchiveRelativePath_(suggestion, {
+        maxIssuerLength: 50,
+        maxDocumentTypeLength: 30,
+      }),
     ).toBe("パークホームズLaLa新三郷管理組合/請求書");
   });
 
@@ -226,13 +223,10 @@ describe("buildArchiveRelativePath_", () => {
     ).toContain("桜小学校");
 
     expect(
-      context.buildArchiveRelativePath_(
-        suggestion,
-        {
-          maxIssuerLength: 50,
-          maxDocumentTypeLength: 30,
-        },
-      ),
+      context.buildArchiveRelativePath_(suggestion, {
+        maxIssuerLength: 50,
+        maxDocumentTypeLength: 30,
+      }),
     ).toBe("桜小学校/おたより");
   });
 });
@@ -482,9 +476,13 @@ describe("shouldTreatLogRowAsProcessed_", () => {
       files: ["src/utils.js", "src/log-sheet.js"],
     });
 
-    expect(context.shouldTreatLogRowAsProcessed_("copy_failed", "Archive folder is unavailable.", "rename")).toBe(
-      false,
-    );
+    expect(
+      context.shouldTreatLogRowAsProcessed_(
+        "copy_failed",
+        "Archive folder is unavailable.",
+        "rename",
+      ),
+    ).toBe(false);
   });
 
   test("reprocesses legacy renamed rows that do not have an archive file id yet", () => {
@@ -511,21 +509,23 @@ describe("getFileStateMap_", () => {
         getRange() {
           return {
             getValues() {
-              return [[
-                "2026-03-01T00:00:00.000Z",
-                "file-1",
-                "review_needed",
-                "scan.pdf",
-                "2026-03-01_市役所_税通知_令和8年度.pdf",
-                "",
-                0.96,
-                "2026-03-01",
-                "市役所",
-                "税通知",
-                "令和8年度",
-                "税通知のテスト",
-                "Review mode is enabled.",
-              ]];
+              return [
+                [
+                  "2026-03-01T00:00:00.000Z",
+                  "file-1",
+                  "review_needed",
+                  "scan.pdf",
+                  "2026-03-01_市役所_税通知_令和8年度.pdf",
+                  "",
+                  0.96,
+                  "2026-03-01",
+                  "市役所",
+                  "税通知",
+                  "令和8年度",
+                  "税通知のテスト",
+                  "Review mode is enabled.",
+                ],
+              ];
             },
           };
         },
@@ -550,24 +550,26 @@ describe("getFileStateMap_", () => {
         getRange() {
           return {
             getValues() {
-              return [[
-                "2026-03-01T00:00:00.000Z",
-                "file-1",
-                "copy_failed",
-                "scan.pdf",
-                "2026-03-01_市役所_税通知_令和8年度.pdf",
-                "2026-03-01_市役所_税通知_令和8年度.pdf",
-                0.96,
-                "2026-03-01",
-                "市役所",
-                "税通知",
-                "令和8年度",
-                "税通知のテスト",
-                "市役所/税通知",
-                "2026-03-01_市役所_税通知_令和8年度.pdf",
-                "",
-                "Archive folder is unavailable.",
-              ]];
+              return [
+                [
+                  "2026-03-01T00:00:00.000Z",
+                  "file-1",
+                  "copy_failed",
+                  "scan.pdf",
+                  "2026-03-01_市役所_税通知_令和8年度.pdf",
+                  "2026-03-01_市役所_税通知_令和8年度.pdf",
+                  0.96,
+                  "2026-03-01",
+                  "市役所",
+                  "税通知",
+                  "令和8年度",
+                  "税通知のテスト",
+                  "市役所/税通知",
+                  "2026-03-01_市役所_税通知_令和8年度.pdf",
+                  "",
+                  "Archive folder is unavailable.",
+                ],
+              ];
             },
           };
         },
@@ -590,7 +592,7 @@ describe("validateRunConfig_", () => {
       files: ["src/main.js"],
     });
 
-    expect(function() {
+    expect(function () {
       context.validateRunConfig_({ renameMode: "review", archiveRootFolderId: "" });
     }).not.toThrow();
   });
@@ -600,7 +602,7 @@ describe("validateRunConfig_", () => {
       files: ["src/main.js"],
     });
 
-    expect(function() {
+    expect(function () {
       context.validateRunConfig_({ renameMode: "rename", archiveRootFolderId: "" });
     }).toThrow("ARCHIVE_ROOT_FOLDER_ID is required when RENAME_MODE=rename.");
   });
