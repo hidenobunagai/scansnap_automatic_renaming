@@ -327,6 +327,16 @@ function normalizeIsoDate_(value) {
     return "";
   }
 
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return "";
+  }
+
   return Utilities.formatString("%04d-%02d-%02d", year, month, day);
 }
 
