@@ -34,10 +34,13 @@ function buildAiPrompt_(extractedText, fileMeta, config) {
 
 function callGeminiForRename_(prompt, config) {
   const response = fetchJson_(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.aiModel)}:generateContent?key=${encodeURIComponent(config.geminiApiKey)}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.aiModel)}:generateContent`,
     {
       method: "post",
       contentType: "application/json",
+      headers: {
+        "x-goog-api-key": config.geminiApiKey,
+      },
       payload: JSON.stringify({
         contents: [
           {
