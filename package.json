@@ -4,6 +4,8 @@
   "type": "module",
   "scripts": {
     "check": "find src scripts -type f \\( -name \"*.js\" -o -name \"*.mjs\" \\) -exec node --check {} \\;",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "test": "bun test",
     "format": "prettier --write src scripts tests package.json",
     "format:check": "prettier --check src scripts tests package.json",
@@ -15,6 +17,7 @@
     "setup:remote": "dotenvx run -- node scripts/bootstrap-remote-setup.mjs"
   },
   "devDependencies": {
+    "eslint": "9",
     "prettier": "^3.9.6"
   }
 }
