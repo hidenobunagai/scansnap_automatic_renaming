@@ -3,9 +3,11 @@ function extractTextFromPdf_(fileId, config) {
   let tempDocument = null;
 
   try {
-    tempDocument = Drive.Files.insert(
+    var ocrTempTitle = `ocr_${Utilities.getUuid()}`;
+    tempDocument = driveFilesInsertCompat_(
       {
-        title: `ocr_${Utilities.getUuid()}`,
+        title: ocrTempTitle,
+        name: ocrTempTitle,
       },
       pdfFile.getBlob(),
       {
@@ -20,10 +22,10 @@ function extractTextFromPdf_(fileId, config) {
   } finally {
     if (tempDocument && tempDocument.id) {
       try {
-        Drive.Files.trash(tempDocument.id);
+        driveFilesTrashCompat_(tempDocument.id);
       } catch (error) {
         try {
-          Drive.Files.remove(tempDocument.id, { supportsAllDrives: true });
+          driveFilesRemoveCompat_(tempDocument.id);
         } catch (ignore) {
           if (typeof logError_ === "function") {
             logError_("Failed to clean up OCR temp document.", {

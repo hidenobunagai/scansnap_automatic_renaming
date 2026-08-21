@@ -9,7 +9,7 @@ function listPendingPdfFiles_(config, fileStateMap) {
   let pageToken = "";
 
   while (candidates.length < config.maxFilesPerRun) {
-    const response = Drive.Files.list({
+    const response = driveFilesListCompat_({
       q: query,
       maxResults: Math.max(config.maxFilesPerRun * 3, 20),
       orderBy: "modifiedDate desc",
@@ -18,7 +18,7 @@ function listPendingPdfFiles_(config, fileStateMap) {
       supportsAllDrives: true,
     });
 
-    (response.items || []).forEach(function (item) {
+    getDriveFileItems_(response).forEach(function (item) {
       const fileState = fileStateMap[item.id];
 
       if (candidates.length >= config.maxFilesPerRun || (fileState && fileState.processed)) {
@@ -27,9 +27,9 @@ function listPendingPdfFiles_(config, fileStateMap) {
 
       const fileMeta = {
         id: item.id,
-        name: item.title,
-        createdAt: new Date(item.createdDate),
-        modifiedAt: new Date(item.modifiedDate),
+        name: getDriveFileTitle_(item),
+        createdAt: new Date(getDriveCreatedDate_(item)),
+        modifiedAt: new Date(getDriveModifiedDate_(item)),
       };
 
       if (!isFileStable_(fileMeta, config.fileStableMinutes)) {
@@ -54,9 +54,7 @@ function isFileStable_(fileMeta, stableMinutes) {
 }
 
 function renameDriveFile_(fileId, newTitle) {
-  Drive.Files.patch({ title: newTitle }, fileId, {
-    supportsAllDrives: true,
-  });
+  driveFilesPatchTitleCompat_(fileId, newTitle, { supportsAllDrives: true });
 }
 
 function ensureArchiveFolderByPath_(rootFolderId, relativePath) {
@@ -108,16 +106,9 @@ function ensureUniqueFileNameInFolder_(folderId, proposedName, currentFileId) {
 }
 
 function copyDriveFileToFolder_(fileId, folderId, newTitle) {
-  return Drive.Files.copy(
-    {
-      title: newTitle,
-      parents: [{ id: folderId }],
-    },
-    fileId,
-    {
-      supportsAllDrives: true,
-    },
-  );
+  return Drive.Files.copy(buildDriveCopyResource_(newTitle, folderId), fileId, {
+    supportsAllDrives: true,
+  });
 }
 
 function driveFileNameExists_(folderId, fileName, currentFileId) {
@@ -131,7 +122,7 @@ function findDriveFileByNameInFolder_(folderId, fileName, currentFileId) {
     "trashed = false",
   ].join(" and ");
 
-  const response = Drive.Files.list({
+  const response = driveFilesListCompat_({
     q: query,
     maxResults: 10,
     includeItemsFromAllDrives: true,
@@ -139,7 +130,7 @@ function findDriveFileByNameInFolder_(folderId, fileName, currentFileId) {
   });
 
   return (
-    (response.items || []).find(function (item) {
+    getDriveFileItems_(response).find(function (item) {
       return !currentFileId || item.id !== currentFileId;
     }) || null
   );
@@ -152,17 +143,9 @@ function findOrCreateChildFolder_(parentFolderId, folderName) {
     return existingFolder;
   }
 
-  return Drive.Files.insert(
-    {
-      title: folderName,
-      mimeType: "application/vnd.google-apps.folder",
-      parents: [{ id: parentFolderId }],
-    },
-    null,
-    {
-      supportsAllDrives: true,
-    },
-  );
+  return driveFilesInsertCompat_(buildDriveFolderResource_(folderName, parentFolderId), null, {
+    supportsAllDrives: true,
+  });
 }
 
 function findChildFolder_(parentFolderId, folderName) {
@@ -173,12 +156,12 @@ function findChildFolder_(parentFolderId, folderName) {
     "trashed = false",
   ].join(" and ");
 
-  const response = Drive.Files.list({
+  const response = driveFilesListCompat_({
     q: query,
     maxResults: 10,
     includeItemsFromAllDrives: true,
     supportsAllDrives: true,
   });
 
-  return (response.items || [])[0] || null;
+  return getDriveFileItems_(response)[0] || null;
 }

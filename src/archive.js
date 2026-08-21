@@ -54,12 +54,22 @@ function moveDriveFileToFolder_(fileId, folderId) {
     .filter(Boolean)
     .join(",");
 
-  Drive.Files.patch({}, fileId, {
-    addParents: folderId,
-    removeParents: previousParents,
-    fields: "id,parents",
-    supportsAllDrives: true,
-  });
+  // v2: patch with addParents/removeParents, v3: update with same params (compat via patch helper)
+  if (Drive.Files.patch) {
+    Drive.Files.patch({}, fileId, {
+      addParents: folderId,
+      removeParents: previousParents,
+      fields: "id,parents",
+      supportsAllDrives: true,
+    });
+  } else if (Drive.Files.update) {
+    Drive.Files.update({}, fileId, null, {
+      addParents: folderId,
+      removeParents: previousParents,
+      fields: "id,parents",
+      supportsAllDrives: true,
+    });
+  }
 }
 
 function buildNormalizedArchiveFileName_(fileName, issuerFolderName, normalizedIssuerFolderName) {
@@ -427,7 +437,7 @@ function normalizeArchiveIssuerNames() {
           destinationFolder = existingFolder;
           counts.mergedFolders += 1;
         } else {
-          Drive.Files.patch({ title: normalizedIssuer }, issuerFolder.id, {
+          driveFilesPatchTitleCompat_(issuerFolder.id, normalizedIssuer, {
             supportsAllDrives: true,
           });
           destinationFolder = { id: issuerFolder.id, title: normalizedIssuer };
@@ -450,7 +460,7 @@ function normalizeArchiveIssuerNames() {
             );
 
             if (nextFileName !== file.title) {
-              Drive.Files.patch({ title: nextFileName }, file.id, {
+              driveFilesPatchTitleCompat_(file.id, nextFileName, {
                 supportsAllDrives: true,
               });
               counts.renamedFiles += 1;
@@ -583,7 +593,7 @@ function correctArchiveIssuerFolders() {
               : buildNormalizedArchiveFileName_(file.title, issuerFolder.title, correctedIssuer);
 
             if (nextFileName !== file.title) {
-              Drive.Files.patch({ title: nextFileName }, file.id, { supportsAllDrives: true });
+              driveFilesPatchTitleCompat_(file.id, nextFileName, { supportsAllDrives: true });
               counts.renamedFiles += 1;
             }
 
@@ -651,7 +661,7 @@ function listDirectChildFolders_(parentFolderId) {
   var pageToken = "";
 
   while (true) {
-    var response = Drive.Files.list({
+    var response = driveFilesListCompat_({
       q: query,
       maxResults: 100,
       pageToken: pageToken || undefined,
@@ -659,11 +669,11 @@ function listDirectChildFolders_(parentFolderId) {
       supportsAllDrives: true,
     });
 
-    (response.items || []).forEach(function (item) {
-      folders.push({ id: item.id, title: item.title });
+    getDriveFileItems_(response).forEach(function (item) {
+      folders.push({ id: item.id, title: getDriveFileTitle_(item) });
     });
 
-    pageToken = response.nextPageToken || "";
+    pageToken = getDriveNextPageToken_(response) || "";
 
     if (!pageToken) {
       break;
@@ -696,7 +706,7 @@ function listFilesInFolder_(folderId) {
   var pageToken = "";
 
   while (true) {
-    var response = Drive.Files.list({
+    var response = driveFilesListCompat_({
       q: query,
       maxResults: 100,
       pageToken: pageToken || undefined,
@@ -704,11 +714,11 @@ function listFilesInFolder_(folderId) {
       supportsAllDrives: true,
     });
 
-    (response.items || []).forEach(function (item) {
-      files.push({ id: item.id, title: item.title });
+    getDriveFileItems_(response).forEach(function (item) {
+      files.push({ id: item.id, title: getDriveFileTitle_(item) });
     });
 
-    pageToken = response.nextPageToken || "";
+    pageToken = getDriveNextPageToken_(response) || "";
 
     if (!pageToken) {
       break;
@@ -723,18 +733,18 @@ function deleteEmptyFolder_(folderId) {
     " and ",
   );
 
-  var response = Drive.Files.list({
+  var response = driveFilesListCompat_({
     q: query,
     maxResults: 1,
     includeItemsFromAllDrives: true,
     supportsAllDrives: true,
   });
 
-  if ((response.items || []).length > 0) {
+  if (getDriveFileItems_(response).length > 0) {
     throw new Error("Folder is not empty");
   }
 
-  Drive.Files.remove(folderId, { supportsAllDrives: true });
+  driveFilesRemoveCompat_(folderId);
 }
 
 function normalizeIssuerRowsInLog_(oldIssuer, newIssuer, config) {

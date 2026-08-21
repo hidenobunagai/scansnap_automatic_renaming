@@ -79,6 +79,25 @@ export function createAppsScriptContext({ files = [], globals = {} } = {}) {
     ...globals,
   });
 
+  // Auto-load Drive compat for files that depend on Drive API (v2/v3 bridge)
+  const needsDriveCompat = files.some(function (p) {
+    return (
+      p === "src/drive.js" ||
+      p === "src/archive.js" ||
+      p === "src/ocr.js" ||
+      p === "src/main.js" ||
+      p === "src/drive-compat.js"
+    );
+  });
+  if (needsDriveCompat && !files.includes("src/drive-compat.js")) {
+    const compatPath = resolve(PROJECT_ROOT, "src/drive-compat.js");
+    if (existsSync(compatPath)) {
+      vm.runInContext(readFileSync(compatPath, "utf8"), context, {
+        filename: compatPath,
+      });
+    }
+  }
+
   files.forEach(function (relativePath) {
     const absolutePath = resolve(PROJECT_ROOT, relativePath);
 
