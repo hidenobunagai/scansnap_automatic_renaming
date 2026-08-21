@@ -23,10 +23,13 @@ function getConfig_() {
   const aiProvider = normalizeAiProvider_(
     getStringProperty_(properties, "AI_PROVIDER", DEFAULTS_.aiProvider),
   );
-  const aiModel = getStringProperty_(
-    properties,
-    "AI_MODEL",
-    aiProvider === "gemini" ? DEFAULTS_.defaultGeminiModel : DEFAULTS_.defaultOpenAiModel,
+  const aiModel = normalizeAiModel_(
+    aiProvider,
+    getStringProperty_(
+      properties,
+      "AI_MODEL",
+      aiProvider === "gemini" ? DEFAULTS_.defaultGeminiModel : DEFAULTS_.defaultOpenAiModel,
+    ),
   );
 
   return {
@@ -171,4 +174,22 @@ function normalizeTriggerMinutes_(value) {
   }
 
   return minutes;
+}
+
+function normalizeAiModel_(provider, model) {
+  var m = String(model || "").trim();
+  if (!m) return m;
+  var isGeminiLike = m.indexOf("gemini-") === 0;
+  var isOpenAiLike = m.indexOf("gpt-") === 0 || m.indexOf("o1") === 0 || m.indexOf("o3") === 0;
+  if (provider === "gemini" && !isGeminiLike) {
+    if (typeof logError_ === "function") {
+      logError_("AI_MODEL for gemini should start with gemini-", { aiModel: m });
+    }
+  }
+  if (provider === "openai" && !isOpenAiLike) {
+    if (typeof logError_ === "function") {
+      logError_("AI_MODEL for openai should start with gpt-/o1/o3", { aiModel: m });
+    }
+  }
+  return m;
 }
