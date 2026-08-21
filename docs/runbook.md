@@ -36,6 +36,11 @@
 
 いずれも冪等・再開可能。途中失敗しても `last*` プロパティで次回は続きから。
 
+## 通知
+
+- `NOTIFICATION_EMAIL` を設定すると、`error` / `copy_failed` が1件でもあれば実行後に `MailApp.sendEmail` で通知。未設定ならログのみ。
+- 初回は要再認証（`script.send_mail` スコープ追加のため）。`clasp push` 後にエディタで `runScanRenameJob` を手動実行して承認。
+
 ## セキュリティ
 
 - `executionApi.access` は `MYSELF`（オーナーのみ）。`clasp deployments` でデプロイ一覧を確認し、不要なら `clasp undeploy <id>`。
@@ -43,4 +48,6 @@
 
 ## Drive API v2 について
 
-現在 `Drive` Advanced Service v2 (`Drive.Files.*`, `items/title`) を使用。Google は v2 を非推奨としており、将来 v3 移行が必要（`files/name/parents`）。移行時は `src/drive.js` / `src/archive.js` / `src/ocr.js` を一括で置換する計画とすること。
+現在 `Drive` Advanced Service v2 (`Drive.Files.*`, `items/title`) を使用。Google は v2 を非推奨としており、将来 v3 移行が必要（`files/name/parents`）。
+- `src/drive-compat.js` に v2/v3 互換レイヤ（`title↔name`, `items↔files`, `patch↔update`, `insert↔create`, `maxResults↔pageSize`）を実装済み。現 manifest は v2 のまま、コードは両対応。
+- 完全移行（`appsscript.json` の `version: "v3"` + `title→name` クエリ変更）は別ブランチで `clasp` 手動検証してから実施すること。
