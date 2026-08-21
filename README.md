@@ -120,5 +120,5 @@ bun run setup:remote
 - 共有先コピーに失敗したファイルは `copy_failed` で記録され、次回実行で再試行されます。
 - 再処理したいファイルは、ログシートから該当行を消して再実行してください。
 - Gemini API キーは URL クエリではなく `x-goog-api-key` ヘッダーで送信されます(ログやプロキシへの漏えいを防ぐため)。
-- `executionApi.access: ANYONE` は `clasp run`(`setup:remote`)に必須の設定です。ただし API Executable のデプロイ ID を知る任意の Google アカウントから関数を実行できてしまうため、デプロイ ID の公開・共有は避け、不要になったら `clasp undeploy` で削除してください。
+- `executionApi.access` は `MYSELF`(オーナーのみ)に設定しています。`clasp run`(`setup:remote`)はオーナー認証で実行できるため `ANYONE` は不要です。デプロイは `setup:remote` が一時的に作成し、不要になったら `clasp deployments` で確認のうえ `clasp undeploy <deploymentId>` で削除してください。`ANYONE` に変更した場合はデプロイ ID を知る任意のアカウントから実行可能になるため公開・共有は避けてください。
 - 大きい PDF や画像中心の PDF が増えたら、OCR / AI 呼び出しだけ Cloud Run へ切り出すのが次の一手です。

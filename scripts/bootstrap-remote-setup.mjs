@@ -113,6 +113,11 @@ function main() {
     "--params",
     JSON.stringify([setupRequest]),
   ]);
+
+  // With executionApi MYSELF the deployment is owner-only, but still list it for hygiene.
+  // Remove when no longer needed: `clasp deployments` then `clasp undeploy <deploymentId>`
+  console.log("\nRemote setup completed. Deployment remains (MYSELF = owner only).");
+  console.log("To remove: clasp deployments  ->  clasp undeploy <deploymentId>");
 }
 
 main();
