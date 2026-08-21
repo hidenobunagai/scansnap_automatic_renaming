@@ -17,6 +17,8 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Syntax check
         run: bun run check
+      - name: Type check
+        run: bun run typecheck
       - name: Lint
         run: bun run lint
       - name: Format check
