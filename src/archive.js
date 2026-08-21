@@ -206,29 +206,24 @@ function getIssuerLogRows_(issuerFolderName, archiveFileNames, config) {
     });
 }
 
-function correctIssuerRowsInLog_(oldIssuer, correctedIssuer, archiveFileNames, config) {
-  if (!oldIssuer || !correctedIssuer || oldIssuer === correctedIssuer) {
+function updateLogRowsForIssuer_(oldIssuer, archiveFileNames, config, rowUpdater) {
+  if (!oldIssuer || typeof rowUpdater !== "function") {
     return 0;
   }
-
   var logState = getLogState_(config);
   var sheet = logState.sheet;
   var lastRow = sheet.getLastRow();
-  var archiveFileNameLookup = buildArchiveLogFileNameLookup_(archiveFileNames);
-
   if (lastRow < 2) {
     return 0;
   }
-
+  var archiveFileNameLookup = buildArchiveLogFileNameLookup_(archiveFileNames);
   var range = sheet.getRange(2, 1, lastRow - 1, LOG_HEADERS_.length);
   var values = range.getValues();
   var updated = 0;
-
   for (var i = 0; i < values.length; i++) {
     if (String(values[i][LOG_HEADER_INDEX_.issuer] || "") !== oldIssuer) {
       continue;
     }
-
     if (
       archiveFileNames &&
       archiveFileNames.length &&
@@ -236,16 +231,22 @@ function correctIssuerRowsInLog_(oldIssuer, correctedIssuer, archiveFileNames, c
     ) {
       continue;
     }
-
-    updateIssuerFieldsInLogRow_(values[i], oldIssuer, correctedIssuer);
+    rowUpdater(values[i]);
     updated += 1;
   }
-
   if (updated) {
     range.setValues(values);
   }
-
   return updated;
+}
+
+function correctIssuerRowsInLog_(oldIssuer, correctedIssuer, archiveFileNames, config) {
+  if (!oldIssuer || !correctedIssuer || oldIssuer === correctedIssuer) {
+    return 0;
+  }
+  return updateLogRowsForIssuer_(oldIssuer, archiveFileNames, config, function (row) {
+    updateIssuerFieldsInLogRow_(row, oldIssuer, correctedIssuer);
+  });
 }
 
 function isInvertedArchiveHierarchy_(issuerFolderName, documentTypeFolders, config) {
@@ -289,65 +290,26 @@ function correctInvertedIssuerRowsInLog_(oldIssuer, correctedIssuer, archiveFile
   if (!oldIssuer || !correctedIssuer || oldIssuer === correctedIssuer) {
     return 0;
   }
-
-  var logState = getLogState_(config);
-  var sheet = logState.sheet;
-  var lastRow = sheet.getLastRow();
-  var archiveFileNameLookup = buildArchiveLogFileNameLookup_(archiveFileNames);
-
-  if (lastRow < 2) {
-    return 0;
-  }
-
-  var range = sheet.getRange(2, 1, lastRow - 1, LOG_HEADERS_.length);
-  var values = range.getValues();
-  var updated = 0;
-
-  for (var i = 0; i < values.length; i++) {
-    if (String(values[i][LOG_HEADER_INDEX_.issuer] || "") !== oldIssuer) {
-      continue;
-    }
-
-    if (
-      archiveFileNames &&
-      archiveFileNames.length &&
-      !archiveFileNameLookup[String(values[i][LOG_HEADER_INDEX_.archiveFinalName] || "")]
-    ) {
-      continue;
-    }
-
-    values[i][LOG_HEADER_INDEX_.issuer] = correctedIssuer;
-
-    var archivePath = String(values[i][LOG_HEADER_INDEX_.archiveRelativePath] || "");
-
+  return updateLogRowsForIssuer_(oldIssuer, archiveFileNames, config, function (row) {
+    row[LOG_HEADER_INDEX_.issuer] = correctedIssuer;
+    var archivePath = String(row[LOG_HEADER_INDEX_.archiveRelativePath] || "");
     if (archivePath) {
       var segments = archivePath.split("/");
-
       if (segments.length >= 2) {
         segments[0] = correctedIssuer;
         segments[1] = oldIssuer;
-        values[i][LOG_HEADER_INDEX_.archiveRelativePath] = segments.join("/");
+        row[LOG_HEADER_INDEX_.archiveRelativePath] = segments.join("/");
       }
     }
-
-    var archiveFileName = String(values[i][LOG_HEADER_INDEX_.archiveFinalName] || "");
-
+    var archiveFileName = String(row[LOG_HEADER_INDEX_.archiveFinalName] || "");
     if (archiveFileName) {
-      values[i][LOG_HEADER_INDEX_.archiveFinalName] = buildInvertedArchiveFileName_(
+      row[LOG_HEADER_INDEX_.archiveFinalName] = buildInvertedArchiveFileName_(
         archiveFileName,
         correctedIssuer,
         oldIssuer,
       );
     }
-
-    updated += 1;
-  }
-
-  if (updated) {
-    range.setValues(values);
-  }
-
-  return updated;
+  });
 }
 
 function migrateArchiveFolderStructure() {
@@ -779,34 +741,9 @@ function normalizeIssuerRowsInLog_(oldIssuer, newIssuer, config) {
   if (!oldIssuer || !newIssuer || oldIssuer === newIssuer) {
     return 0;
   }
-
-  var logState = getLogState_(config);
-  var sheet = logState.sheet;
-  var lastRow = sheet.getLastRow();
-
-  if (lastRow < 2) {
-    return 0;
-  }
-
-  var range = sheet.getRange(2, 1, lastRow - 1, LOG_HEADERS_.length);
-  var values = range.getValues();
-  var updated = 0;
-
-  for (var i = 0; i < values.length; i++) {
-    if (String(values[i][LOG_HEADER_INDEX_.issuer] || "") !== oldIssuer) {
-      continue;
-    }
-
-    updateIssuerFieldsInLogRow_(values[i], oldIssuer, newIssuer);
-
-    updated += 1;
-  }
-
-  if (updated) {
-    range.setValues(values);
-  }
-
-  return updated;
+  return updateLogRowsForIssuer_(oldIssuer, null, config, function (row) {
+    updateIssuerFieldsInLogRow_(row, oldIssuer, newIssuer);
+  });
 }
 
 function migrateArchivePathsInLog_(config) {
