@@ -1,0 +1,3 @@
+# dotenvx encrypted values are safe to commit (public-key encrypted)
+encrypted:
+DOTENV_PUBLIC_KEY
