@@ -19,7 +19,20 @@ function extractTextFromPdf_(fileId, config) {
     return collapseWhitespace_(DocumentApp.openById(tempDocument.id).getBody().getText());
   } finally {
     if (tempDocument && tempDocument.id) {
-      Drive.Files.trash(tempDocument.id);
+      try {
+        Drive.Files.trash(tempDocument.id);
+      } catch (error) {
+        try {
+          Drive.Files.remove(tempDocument.id, { supportsAllDrives: true });
+        } catch (ignore) {
+          if (typeof logError_ === "function") {
+            logError_("Failed to clean up OCR temp document.", {
+              tempDocumentId: tempDocument.id,
+              error: getErrorMessage_(error),
+            });
+          }
+        }
+      }
     }
   }
 }

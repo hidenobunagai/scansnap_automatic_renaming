@@ -117,20 +117,35 @@ function callOpenAiForRename_(prompt, config) {
   return parseJsonObjectResponse_(rawText);
 }
 
-function fetchJson_(url, requestOptions) {
-  const response = UrlFetchApp.fetch(
-    url,
-    Object.assign(
-      {
-        muteHttpExceptions: true,
-      },
-      requestOptions,
-    ),
-  );
-  const status = response.getResponseCode();
-  const bodyText = response.getContentText();
+function fetchJson_(url, requestOptions, attempt) {
+  var currentAttempt = typeof attempt === "number" ? attempt : 0;
+  var response;
+  try {
+    response = UrlFetchApp.fetch(
+      url,
+      Object.assign(
+        {
+          muteHttpExceptions: true,
+        },
+        requestOptions,
+      ),
+    );
+  } catch (error) {
+    if (currentAttempt < 2) {
+      Utilities.sleep(Math.pow(2, currentAttempt) * 1000 + Math.random() * 500);
+      return fetchJson_(url, requestOptions, currentAttempt + 1);
+    }
+    throw error;
+  }
+  var status = response.getResponseCode();
+  var bodyText = response.getContentText();
 
   if (status >= 300) {
+    var isRetryable = status === 429 || status === 408 || status >= 500;
+    if (isRetryable && currentAttempt < 2) {
+      Utilities.sleep(Math.pow(2, currentAttempt) * 1000 + Math.random() * 500);
+      return fetchJson_(url, requestOptions, currentAttempt + 1);
+    }
     throw new Error(`External API request failed (${status}): ${truncateText_(bodyText, 400)}`);
   }
 
