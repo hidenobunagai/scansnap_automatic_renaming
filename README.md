@@ -110,6 +110,10 @@ bun run setup:remote
 - `correctArchiveIssuerFolders()`: 誤った発行元フォルダを本文や既存ログの強い候補に基づいて補正し、既存のアーカイブパスとファイル名も更新
 - `getScriptPropertiesTemplate()`: 設定キーのひな形を返す
 
+## 運用
+
+詳細は [docs/runbook.md](docs/runbook.md) を参照。
+
 ## Notes
 
 - OCR テキストがほぼ取れない場合は `review_needed` で止めます。
