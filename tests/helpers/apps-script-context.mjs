@@ -84,6 +84,7 @@ export function createAppsScriptContext({ files = [], globals = {} } = {}) {
     return (
       p === "src/drive.js" ||
       p === "src/archive.js" ||
+      p === "src/archive-maintenance.js" ||
       p === "src/ocr.js" ||
       p === "src/main.js" ||
       p === "src/drive-compat.js"
@@ -109,6 +110,16 @@ export function createAppsScriptContext({ files = [], globals = {} } = {}) {
       filename: absolutePath,
     });
   });
+
+  // Auto-load archive maintenance when core archive is used (keeps tests backward compat)
+  if (files.includes("src/archive.js") && !files.includes("src/archive-maintenance.js")) {
+    const maintPath = resolve(PROJECT_ROOT, "src/archive-maintenance.js");
+    if (existsSync(maintPath)) {
+      vm.runInContext(readFileSync(maintPath, "utf8"), context, {
+        filename: maintPath,
+      });
+    }
+  }
 
   return context;
 }
