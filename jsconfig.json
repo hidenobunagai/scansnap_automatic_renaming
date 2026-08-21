@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "checkJs": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": false,
+    "allowJs": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
+    "lib": ["ES2022"],
+    "types": [],
+    "typeRoots": ["./node_modules/@types", "./types"]
+  },
+  "exclude": ["**/node_modules/**", ".worktrees", "docs", "src/appsscript.json", "tests"],
+  "include": ["src/**/*.js", "types/**/*.d.ts"]
+}

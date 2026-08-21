@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "check": "find src scripts -type f \\( -name \"*.js\" -o -name \"*.mjs\" \\) -exec node --check {} \\;",
+    "typecheck": "tsc --noEmit --skipLibCheck -p jsconfig.json",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "bun test",
@@ -18,6 +19,7 @@
   },
   "devDependencies": {
     "eslint": "9",
-    "prettier": "^3.9.6"
+    "prettier": "^3.9.6",
+    "typescript": "5"
   }
 }
