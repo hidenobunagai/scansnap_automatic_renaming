@@ -15,6 +15,7 @@ const DEFAULTS_ = Object.freeze({
   maxIssuerLength: 30,
   maxDocumentTypeLength: 30,
   triggerMinutes: 15,
+  notificationEmail: "",
 });
 
 function getConfig_() {
@@ -97,6 +98,7 @@ function getConfig_() {
       "OPENAI_BASE_URL",
       "https://api.openai.com/v1/chat/completions",
     ),
+    notificationEmail: getStringProperty_(properties, "NOTIFICATION_EMAIL", ""),
   };
 }
 

@@ -21,6 +21,7 @@ const WRITABLE_SCRIPT_PROPERTIES_ = Object.freeze([
   "MAX_SUBJECT_LENGTH",
   "MAX_ISSUER_LENGTH",
   "MAX_DOCUMENT_TYPE_LENGTH",
+  "NOTIFICATION_EMAIL",
 ]);
 
 function setupScanRenameProject() {
@@ -76,6 +77,7 @@ function runScanRenameJob() {
   };
 
   logInfo_("Scan rename run completed.", summary);
+  maybeSendFailureNotification_(summary, config);
 
   return summary;
 }
@@ -182,6 +184,7 @@ function getScriptPropertiesTemplate() {
     `MAX_SUBJECT_LENGTH=${DEFAULTS_.maxSubjectLength}`,
     `MAX_ISSUER_LENGTH=${DEFAULTS_.maxIssuerLength}`,
     `MAX_DOCUMENT_TYPE_LENGTH=${DEFAULTS_.maxDocumentTypeLength}`,
+    "NOTIFICATION_EMAIL=",
   ].join("\n");
 }
 
@@ -588,5 +591,42 @@ function getSafeConfigSummary_(config) {
     logSheetName: config.logSheetName,
     filenamePatternHint: config.filenamePatternHint,
     triggerMinutes: config.triggerMinutes,
+    notificationEmail: config.notificationEmail ? "(set)" : "",
   };
+}
+
+function maybeSendFailureNotification_(summary, config) {
+  var email = collapseWhitespace_(config.notificationEmail || "");
+  if (!email) return;
+  var failed = (summary.counts.error || 0) + (summary.counts.copy_failed || 0);
+  if (failed === 0) return;
+  var subject =
+    "[ScanSnap] " +
+    failed +
+    "件の処理失敗 (" +
+    summary.counts.error +
+    " error, " +
+    summary.counts.copy_failed +
+    " copy_failed)";
+  var body = [
+    "ScanSnap automatic renaming で失敗が発生しました。",
+    "",
+    "processed: " + summary.processed,
+    "counts: " + JSON.stringify(summary.counts),
+    "logSpreadsheetId: " + summary.logSpreadsheetId,
+    "",
+    "詳細はスプレッドシートの scan_rename_log シートで errorMessage 列を確認してください。",
+    "docs/runbook.md も参照。",
+  ].join("\n");
+  try {
+    if (typeof MailApp !== "undefined" && MailApp.sendEmail) {
+      MailApp.sendEmail(email, subject, body);
+      logInfo_("Failure notification sent.", { to: email, failed: failed });
+    }
+  } catch (error) {
+    logError_("Failed to send failure notification.", {
+      to: email,
+      error: getErrorMessage_(error),
+    });
+  }
 }

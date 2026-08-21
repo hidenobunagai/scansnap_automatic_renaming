@@ -17,6 +17,7 @@ export default defineConfig([
         SpreadsheetApp: "readonly",
         UrlFetchApp: "readonly",
         PropertiesService: "readonly",
+        MailApp: "readonly",
         console: "readonly",
       },
     },

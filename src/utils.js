@@ -51,6 +51,9 @@ function normalizeIssuerText_(value) {
   );
 }
 
+// Policy: keep this list to generic document/institution labels only.
+// Specific form names (e.g. 割戻金通知書) should be added via USER_WEAK_ISSUER_LABELS
+// rather than hard-coding every observed label here.
 const WEAK_ISSUER_LABELS_ = [
   "案内",
   "おたより",

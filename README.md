@@ -86,6 +86,7 @@ bun run setup:remote
 | `MAX_SUBJECT_LENGTH` | no | `40` | ファイル名の要点部分の最大長 |
 | `MAX_ISSUER_LENGTH` | no | `30` | ファイル名・フォルダ名の発行元部分の最大長 |
 | `MAX_DOCUMENT_TYPE_LENGTH` | no | `30` | ファイル名・フォルダ名の書類種別部分の最大長 |
+| `NOTIFICATION_EMAIL` | no | `you@example.com` | `error`/`copy_failed` 時に通知を送る宛先(未設定なら通知なし) |
 
 ## Local commands
 
