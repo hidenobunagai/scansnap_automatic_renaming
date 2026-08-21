@@ -7,3 +7,4 @@ client_secret.json
 .DS_Store
 node_modules
 .worktrees/
+excalidraw.log
