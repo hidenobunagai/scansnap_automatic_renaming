@@ -4,6 +4,8 @@ Google Drive 上の ScanSnap PDF を定期的に見に行き、OCR と AI で分
 
 初期構成は小規模運用向けに `Google Apps Script + Drive + Spreadsheet log + external AI` でまとめています。重い OCR や高頻度処理が必要になったら、OCR / AI 部分だけ Cloud Run に切り出せる前提の作りです。
 
+![全体の流れ: スキャン → OCR → AI 命名 → アーカイブ](docs/scansnap_automatic_renaming_summary.png)
+
 ## What this project does
 
 - 指定フォルダ内の新しい PDF を定期的に確認
