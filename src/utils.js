@@ -115,11 +115,11 @@ const ORGANIZATION_TRAILING_SUFFIX_PATTERNS_ = [
 
 const ORGANIZATION_LEADING_LABELS_ = ["差出人", "発行者", "送付元", "発信元", "宛先"];
 
-var CLASS_NAME_PATTERN_ =
+const CLASS_NAME_PATTERN_ =
   /^(?:[ぁ-んァ-ヶー\d０-９]+組$|[ぁ-んァ-ヶー\d０-９]+[ぐく]み$|[\d０-９]{1,2}年[\d０-９]{1,2}組$)/;
 
 function isWeakIssuerLabel_(value, config) {
-  var text = collapseWhitespace_(value);
+  const text = collapseWhitespace_(value);
 
   if (!text) {
     return true;
@@ -130,7 +130,7 @@ function isWeakIssuerLabel_(value, config) {
   }
 
   if (config && typeof config.userWeakIssuerLabels === "string" && config.userWeakIssuerLabels) {
-    var customLabels = config.userWeakIssuerLabels.split(",").map(function (label) {
+    const customLabels = config.userWeakIssuerLabels.split(",").map(function (label) {
       return collapseWhitespace_(label);
     });
     if (customLabels.indexOf(text) !== -1) {
@@ -146,11 +146,11 @@ function isWeakIssuerLabel_(value, config) {
 }
 
 function trimOrganizationCandidateSuffix_(value) {
-  var candidate = collapseWhitespace_(value);
-  var markerEnd = -1;
+  const candidate = collapseWhitespace_(value);
+  let markerEnd = -1;
 
   ORGANIZATION_MARKERS_.forEach(function (marker) {
-    var markerIndex = candidate.lastIndexOf(marker);
+    const markerIndex = candidate.lastIndexOf(marker);
 
     if (markerIndex === -1) {
       return;
@@ -163,14 +163,14 @@ function trimOrganizationCandidateSuffix_(value) {
     return candidate;
   }
 
-  var trimmed = candidate;
-  var changed = true;
+  let trimmed = candidate;
+  let changed = true;
 
   while (changed) {
     changed = false;
 
     ORGANIZATION_TRAILING_SUFFIX_PATTERNS_.some(function (pattern) {
-      var next = trimmed.replace(pattern, "");
+      const next = trimmed.replace(pattern, "");
 
       if (next === trimmed || next.length < markerEnd) {
         return false;
@@ -186,16 +186,16 @@ function trimOrganizationCandidateSuffix_(value) {
 }
 
 function trimOrganizationCandidatePrefix_(value) {
-  var candidate = collapseWhitespace_(value);
-  var trimmed = candidate;
-  var changed = true;
+  const candidate = collapseWhitespace_(value);
+  let trimmed = candidate;
+  let changed = true;
 
   while (changed) {
     changed = false;
 
     ORGANIZATION_LEADING_LABELS_.some(function (label) {
-      var pattern = new RegExp("^" + label + "\\s+");
-      var next = trimmed.replace(pattern, "");
+      const pattern = new RegExp(`^${label}\\s+`);
+      const next = trimmed.replace(pattern, "");
 
       if (next === trimmed) {
         return false;
@@ -211,16 +211,16 @@ function trimOrganizationCandidatePrefix_(value) {
 }
 
 function trimOrganizationCandidateStart_(value) {
-  var candidate = collapseWhitespace_(value);
-  var markerIndex = -1;
-  var marker = "";
-  var allowedLeadingCharacterPattern =
+  const candidate = collapseWhitespace_(value);
+  let markerIndex = -1;
+  let marker = "";
+  const allowedLeadingCharacterPattern =
     /[A-Z0-9\u30A0-\u30FF\u3400-\u9FFF々ー・()（）.&'\-\uFF10-\uFF19\uFF21-\uFF3A\uFF41-\uFF5A\s]/i;
-  var start = -1;
-  var cursor;
+  let start = -1;
+  let cursor;
 
   ORGANIZATION_MARKERS_.forEach(function (currentMarker) {
-    var index = candidate.indexOf(currentMarker);
+    const index = candidate.indexOf(currentMarker);
 
     if (index === -1) {
       return;
@@ -256,25 +256,20 @@ function trimOrganizationCandidateStart_(value) {
 }
 
 function extractOrganizationCandidates_(value) {
-  var text = collapseWhitespace_(value);
-  var candidates = [];
-  var markerPattern = ORGANIZATION_MARKERS_.slice()
+  const text = collapseWhitespace_(value);
+  const candidates = [];
+  const markerPattern = ORGANIZATION_MARKERS_.slice()
     .sort(function (a, b) {
       return b.length - a.length;
     })
     .join("|");
-  var boundaryPattern = "(?:$|[\\s　、。()（）]|から|より|の|は|が|を|に|へ|と|で)";
-  var candidatePattern = "[^、。()（）]{0,20}?(?:" + markerPattern + ")[^、。()（）]{0,20}?";
-  var pattern = new RegExp(
-    "(?:^|[\\s　、。()（）]|から|より|の|は|が|を|に|へ|と|で)(" +
-      candidatePattern +
-      ")" +
-      "(?=" +
-      boundaryPattern +
-      ")",
+  const boundaryPattern = "(?:$|[\\s　、。()（）]|から|より|の|は|が|を|に|へ|と|で)";
+  const candidatePattern = `[^、。()（）]{0,20}?(?:${markerPattern})[^、。()（）]{0,20}?`;
+  const pattern = new RegExp(
+    `(?:^|[\\s　、。()（）]|から|より|の|は|が|を|に|へ|と|で)(${candidatePattern})(?=${boundaryPattern})`,
     "g",
   );
-  var match;
+  let match;
 
   while ((match = pattern.exec(text)) !== null) {
     candidates.push(

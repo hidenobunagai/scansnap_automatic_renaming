@@ -89,6 +89,8 @@ bun run setup:remote
 | `MAX_ISSUER_LENGTH` | no | `30` | ファイル名・フォルダ名の発行元部分の最大長 |
 | `MAX_DOCUMENT_TYPE_LENGTH` | no | `30` | ファイル名・フォルダ名の書類種別部分の最大長 |
 | `NOTIFICATION_EMAIL` | no | `you@example.com` | `error`/`copy_failed` 時に通知を送る宛先(未設定なら通知なし) |
+| `NOTIFICATION_WEBHOOK_URL` | no | `https://hooks.slack.com/...` | `error`/`copy_failed` 時に送信する Webhook URL (Slack/Discord互換JSON) |
+| `PDF_INPUT_MODE` | no | `drive_ocr` | `drive_ocr` または `direct_ai`。`direct_ai` は Gemini に PDF を直接送信して解析 |
 
 ## Local commands
 
@@ -96,6 +98,7 @@ bun run setup:remote
 bun run env:init
 bun run check
 bun test
+bun run test:coverage
 bun run format
 bun run clasp:push
 bun run clasp:open
@@ -105,9 +108,11 @@ bun run setup:remote
 ## Apps Script functions
 
 - `setupScanRenameProject()`: ログスプレッドシートを準備
-- `runScanRenameJob()`: 未処理 PDF を走査して review / rename を実行
+- `runScanRenameJob()`: 未処理 PDF を走査して review / rename を実行（開始時に古い一時 OCR ファイルを自動クリーンアップ）
 - `installScanRenameTrigger()`: 定期実行 trigger を再作成
 - `removeScanRenameTriggers()`: 既存 trigger を削除
+- `onOpen()`: ログスプレッドシートを開いた際に「ScanSnap操作」カスタムメニューを追加
+- `retrySelectedScanRenameRows()`: 選択中のログ行の status を `retry` に変更（次回定期実行で再処理）
 - `migrateArchiveFolderStructure()`: 既存のアーカイブフォルダを旧構成（書類種別/発行元）から新構成（発行元(半角英数字へ正規化)/書類種別）へ移行
 - `normalizeArchiveIssuerNames()`: 既存の発行元フォルダ名、アーカイブ済みファイル名、ログの issuer 関連項目を半角英数字へ正規化
 - `correctArchiveIssuerFolders()`: 誤った発行元フォルダを本文や既存ログの強い候補に基づいて補正し、既存のアーカイブパスとファイル名も更新

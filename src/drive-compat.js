@@ -1,16 +1,29 @@
 // Drive API v2/v3 compatibility helpers.
 // v2 uses: title, createdDate/modifiedDate, items, maxResults, Drive.Files.insert/patch/trash
 // v3 uses: name, createdTime/modifiedTime, files, pageSize, Drive.Files.create/update
-// Helpers normalize both so a future manifest switch (v2 -> v3) requires minimal code changes.
+// Helpers normalize both so switching the manifest version (v2 <-> v3) requires zero code changes.
+
+function isDriveV3_() {
+  if (typeof Drive === "undefined" || !Drive.Files) return false;
+  return typeof Drive.Files.create === "function" && typeof Drive.Files.insert === "undefined";
+}
+
+function normalizeDriveQuery_(query, isV3) {
+  if (!query || typeof query !== "string") return query;
+  if (isV3) {
+    return query.replace(/\btitle\b/g, "name");
+  }
+  return query.replace(/\bname\b/g, "title");
+}
 
 function getDriveFileTitle_(item) {
   if (!item) return "";
-  return String(item.title || item.name || "");
+  return String(item.name || item.title || "");
 }
 
 function getDriveFileItems_(response) {
   if (!response) return [];
-  return response.items || response.files || [];
+  return response.files || response.items || [];
 }
 
 function getDriveNextPageToken_(response) {
@@ -20,17 +33,29 @@ function getDriveNextPageToken_(response) {
 
 function getDriveCreatedDate_(item) {
   if (!item) return "";
-  return item.createdDate || item.createdTime || "";
+  return item.createdTime || item.createdDate || "";
 }
 
 function getDriveModifiedDate_(item) {
   if (!item) return "";
-  return item.modifiedDate || item.modifiedTime || "";
+  return item.modifiedTime || item.modifiedDate || "";
 }
 
 function buildDriveFolderResource_(folderName, parentId) {
-  // Send both title/name for v2/v3 compatibility.
-  var resource = {
+  const isV3 = isDriveV3_();
+  if (isV3) {
+    const resource = {
+      name: folderName,
+      mimeType: "application/vnd.google-apps.folder",
+    };
+    if (parentId) {
+      resource.parents = [parentId];
+    }
+    return resource;
+  }
+
+  // v2 resource
+  const resource = {
     title: folderName,
     name: folderName,
     mimeType: "application/vnd.google-apps.folder",
@@ -42,6 +67,13 @@ function buildDriveFolderResource_(folderName, parentId) {
 }
 
 function buildDriveCopyResource_(newTitle, folderId) {
+  const isV3 = isDriveV3_();
+  if (isV3) {
+    return {
+      name: newTitle,
+      parents: folderId ? [folderId] : undefined,
+    };
+  }
   return {
     title: newTitle,
     name: newTitle,
@@ -50,24 +82,41 @@ function buildDriveCopyResource_(newTitle, folderId) {
 }
 
 function driveFilesListCompat_(params) {
-  var compatParams = Object.assign({}, params);
-  // v2: maxResults, v3: pageSize — send both.
-  if (compatParams.maxResults && !compatParams.pageSize) {
-    compatParams.pageSize = compatParams.maxResults;
+  const isV3 = isDriveV3_();
+  const compatParams = Object.assign({}, params);
+
+  if (compatParams.q) {
+    compatParams.q = normalizeDriveQuery_(compatParams.q, isV3);
   }
-  if (compatParams.pageSize && !compatParams.maxResults) {
-    compatParams.maxResults = compatParams.pageSize;
+
+  if (isV3) {
+    if (compatParams.maxResults && !compatParams.pageSize) {
+      compatParams.pageSize = compatParams.maxResults;
+    }
+    delete compatParams.maxResults;
+  } else {
+    if (compatParams.pageSize && !compatParams.maxResults) {
+      compatParams.maxResults = compatParams.pageSize;
+    }
+    delete compatParams.pageSize;
   }
-  var response = Drive.Files.list(compatParams);
-  // Normalize so callers can use either .items or .files
+
+  const response = Drive.Files.list(compatParams);
   if (!response.items && response.files) response.items = response.files;
   if (!response.files && response.items) response.files = response.items;
   return response;
 }
 
 function driveFilesPatchTitleCompat_(fileId, newTitle, options) {
-  var opts = Object.assign({ supportsAllDrives: true }, options || {});
-  // Prefer patch (v2) with title, fall back to update (v3) with name
+  const isV3 = isDriveV3_();
+  const opts = Object.assign({ supportsAllDrives: true }, options || {});
+
+  if (isV3 || !Drive.Files.patch) {
+    if (Drive.Files.update) {
+      return Drive.Files.update({ name: newTitle }, fileId, null, opts);
+    }
+  }
+
   if (Drive.Files.patch) {
     try {
       return Drive.Files.patch({ title: newTitle }, fileId, opts);
@@ -78,18 +127,25 @@ function driveFilesPatchTitleCompat_(fileId, newTitle, options) {
       throw e;
     }
   }
-  if (Drive.Files.update) {
-    return Drive.Files.update({ name: newTitle }, fileId, null, opts);
-  }
+
   throw new Error("No Drive patch/update method available");
 }
 
 function driveFilesInsertCompat_(resource, blob, options) {
-  var compatResource = Object.assign({}, resource);
-  // Ensure both title/name are present
+  const isV3 = isDriveV3_();
+  const compatResource = Object.assign({}, resource);
+
   if (compatResource.title && !compatResource.name) compatResource.name = compatResource.title;
   if (compatResource.name && !compatResource.title) compatResource.title = compatResource.name;
-  var opts = Object.assign({ supportsAllDrives: true }, options || {});
+
+  const opts = Object.assign({ supportsAllDrives: true }, options || {});
+
+  if (isV3 || !Drive.Files.insert) {
+    if (Drive.Files.create) {
+      return Drive.Files.create(compatResource, blob, opts);
+    }
+  }
+
   if (Drive.Files.insert) {
     try {
       return Drive.Files.insert(compatResource, blob, opts);
@@ -100,14 +156,19 @@ function driveFilesInsertCompat_(resource, blob, options) {
       throw e;
     }
   }
-  if (Drive.Files.create) {
-    return Drive.Files.create(compatResource, blob, opts);
-  }
+
   throw new Error("No Drive insert/create method available");
 }
 
 function driveFilesTrashCompat_(fileId) {
-  // v2: Drive.Files.trash, v3: Drive.Files.update with trashed
+  const isV3 = isDriveV3_();
+
+  if (isV3) {
+    if (Drive.Files.update) {
+      return Drive.Files.update({ trashed: true }, fileId, null, { supportsAllDrives: true });
+    }
+  }
+
   if (Drive.Files.trash) {
     try {
       return Drive.Files.trash(fileId);
@@ -115,6 +176,7 @@ function driveFilesTrashCompat_(fileId) {
       // fall through to update
     }
   }
+
   if (Drive.Files.remove) {
     try {
       return Drive.Files.remove(fileId, { supportsAllDrives: true });
@@ -122,10 +184,11 @@ function driveFilesTrashCompat_(fileId) {
       // fall through
     }
   }
-  // Last resort: update trashed flag
+
   if (Drive.Files.update) {
     return Drive.Files.update({ trashed: true }, fileId, null, { supportsAllDrives: true });
   }
+
   throw new Error("No Drive trash/remove method available");
 }
 

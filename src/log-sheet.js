@@ -264,7 +264,7 @@ function getLogRowNumber_(row, key) {
 }
 
 function shouldTreatLogRowAsProcessed_(status, errorMessage, renameMode, archiveFileId) {
-  if (!status || status === "error" || status === "copy_failed") {
+  if (!status || status === "error" || status === "copy_failed" || status === "retry") {
     return false;
   }
 

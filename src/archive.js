@@ -25,25 +25,25 @@ function normalizeArchiveSegment_(value, fallbackValue, maxLength) {
 }
 
 function reverseArchivePathSegments_(path) {
-  var segments = String(path || "").split("/");
+  const segments = String(path || "").split("/");
 
   if (segments.length < 2) {
     return String(path || "");
   }
 
-  var first = segments[0];
-  var second = segments[1];
-  var rest = segments.slice(2);
+  const first = segments[0];
+  const second = segments[1];
+  const rest = segments.slice(2);
 
   return [second, first].concat(rest).join("/");
 }
 
 function moveDriveFileToFolder_(fileId, folderId) {
-  var file = Drive.Files.get(fileId, {
+  const file = Drive.Files.get(fileId, {
     fields: "parents",
     supportsAllDrives: true,
   });
-  var previousParents = (file.parents || [])
+  const previousParents = (file.parents || [])
     .map(function (parent) {
       if (typeof parent === "string") {
         return parent;
@@ -79,14 +79,14 @@ function buildNormalizedArchiveFileName_(fileName, issuerFolderName, normalizedI
 function updateIssuerFieldsInLogRow_(row, oldIssuer, normalizedIssuer) {
   row[LOG_HEADER_INDEX_.issuer] = normalizedIssuer;
 
-  var archivePath = String(row[LOG_HEADER_INDEX_.archiveRelativePath] || "");
+  const archivePath = String(row[LOG_HEADER_INDEX_.archiveRelativePath] || "");
   if (archivePath) {
-    var segments = archivePath.split("/");
+    const segments = archivePath.split("/");
     segments[0] = normalizedIssuer;
     row[LOG_HEADER_INDEX_.archiveRelativePath] = segments.join("/");
   }
 
-  var archiveFileName = String(row[LOG_HEADER_INDEX_.archiveFinalName] || "");
+  const archiveFileName = String(row[LOG_HEADER_INDEX_.archiveFinalName] || "");
   if (archiveFileName) {
     row[LOG_HEADER_INDEX_.archiveFinalName] = buildNormalizedArchiveFileName_(
       archiveFileName,
@@ -97,10 +97,10 @@ function updateIssuerFieldsInLogRow_(row, oldIssuer, normalizedIssuer) {
 }
 
 function buildArchiveLogFileNameLookup_(archiveFileNames) {
-  var lookup = {};
+  const lookup = {};
 
   (archiveFileNames || []).forEach(function (fileName) {
-    var normalized = String(fileName || "");
+    const normalized = String(fileName || "");
 
     if (!normalized) {
       return;
@@ -113,10 +113,10 @@ function buildArchiveLogFileNameLookup_(archiveFileNames) {
 }
 
 function getIssuerLogRows_(issuerFolderName, archiveFileNames, config) {
-  var logState = getLogState_(config);
-  var sheet = logState.sheet;
-  var lastRow = sheet.getLastRow();
-  var archiveFileNameLookup = buildArchiveLogFileNameLookup_(archiveFileNames);
+  const logState = getLogState_(config);
+  const sheet = logState.sheet;
+  const lastRow = sheet.getLastRow();
+  const archiveFileNameLookup = buildArchiveLogFileNameLookup_(archiveFileNames);
 
   if (lastRow < 2) {
     return [];
@@ -142,17 +142,17 @@ function updateLogRowsForIssuer_(oldIssuer, archiveFileNames, config, rowUpdater
   if (!oldIssuer || typeof rowUpdater !== "function") {
     return 0;
   }
-  var logState = getLogState_(config);
-  var sheet = logState.sheet;
-  var lastRow = sheet.getLastRow();
+  const logState = getLogState_(config);
+  const sheet = logState.sheet;
+  const lastRow = sheet.getLastRow();
   if (lastRow < 2) {
     return 0;
   }
-  var archiveFileNameLookup = buildArchiveLogFileNameLookup_(archiveFileNames);
-  var range = sheet.getRange(2, 1, lastRow - 1, LOG_HEADERS_.length);
-  var values = range.getValues();
-  var updated = 0;
-  for (var i = 0; i < values.length; i++) {
+  const archiveFileNameLookup = buildArchiveLogFileNameLookup_(archiveFileNames);
+  const range = sheet.getRange(2, 1, lastRow - 1, LOG_HEADERS_.length);
+  const values = range.getValues();
+  let updated = 0;
+  for (let i = 0; i < values.length; i++) {
     if (String(values[i][LOG_HEADER_INDEX_.issuer] || "") !== oldIssuer) {
       continue;
     }
@@ -187,16 +187,16 @@ function correctInvertedIssuerRowsInLog_(oldIssuer, correctedIssuer, archiveFile
   }
   return updateLogRowsForIssuer_(oldIssuer, archiveFileNames, config, function (row) {
     row[LOG_HEADER_INDEX_.issuer] = correctedIssuer;
-    var archivePath = String(row[LOG_HEADER_INDEX_.archiveRelativePath] || "");
+    const archivePath = String(row[LOG_HEADER_INDEX_.archiveRelativePath] || "");
     if (archivePath) {
-      var segments = archivePath.split("/");
+      const segments = archivePath.split("/");
       if (segments.length >= 2) {
         segments[0] = correctedIssuer;
         segments[1] = oldIssuer;
         row[LOG_HEADER_INDEX_.archiveRelativePath] = segments.join("/");
       }
     }
-    var archiveFileName = String(row[LOG_HEADER_INDEX_.archiveFinalName] || "");
+    const archiveFileName = String(row[LOG_HEADER_INDEX_.archiveFinalName] || "");
     if (archiveFileName) {
       row[LOG_HEADER_INDEX_.archiveFinalName] = buildInvertedArchiveFileName_(
         archiveFileName,
@@ -208,17 +208,17 @@ function correctInvertedIssuerRowsInLog_(oldIssuer, correctedIssuer, archiveFile
 }
 
 function listDirectChildFolders_(parentFolderId) {
-  var query = [
-    "'" + escapeDriveQueryValue_(parentFolderId) + "' in parents",
+  const query = [
+    `'${escapeDriveQueryValue_(parentFolderId)}' in parents`,
     "mimeType = 'application/vnd.google-apps.folder'",
     "trashed = false",
   ].join(" and ");
 
-  var folders = [];
-  var pageToken = "";
+  const folders = [];
+  let pageToken = "";
 
   while (true) {
-    var response = driveFilesListCompat_({
+    const response = driveFilesListCompat_({
       q: query,
       maxResults: 100,
       pageToken: pageToken || undefined,
@@ -253,17 +253,17 @@ function listDirectChildFolders_(parentFolderId) {
 }
 
 function listFilesInFolder_(folderId) {
-  var query = [
-    "'" + escapeDriveQueryValue_(folderId) + "' in parents",
+  const query = [
+    `'${escapeDriveQueryValue_(folderId)}' in parents`,
     "mimeType != 'application/vnd.google-apps.folder'",
     "trashed = false",
   ].join(" and ");
 
-  var files = [];
-  var pageToken = "";
+  const files = [];
+  let pageToken = "";
 
   while (true) {
-    var response = driveFilesListCompat_({
+    const response = driveFilesListCompat_({
       q: query,
       maxResults: 100,
       pageToken: pageToken || undefined,
@@ -286,11 +286,11 @@ function listFilesInFolder_(folderId) {
 }
 
 function deleteEmptyFolder_(folderId) {
-  var query = ["'" + escapeDriveQueryValue_(folderId) + "' in parents", "trashed = false"].join(
+  const query = [`'${escapeDriveQueryValue_(folderId)}' in parents`, "trashed = false"].join(
     " and ",
   );
 
-  var response = driveFilesListCompat_({
+  const response = driveFilesListCompat_({
     q: query,
     maxResults: 1,
     includeItemsFromAllDrives: true,
@@ -314,28 +314,28 @@ function normalizeIssuerRowsInLog_(oldIssuer, newIssuer, config) {
 }
 
 function migrateArchivePathsInLog_(config) {
-  var logState = getLogState_(config);
-  var sheet = logState.sheet;
-  var lastRow = sheet.getLastRow();
+  const logState = getLogState_(config);
+  const sheet = logState.sheet;
+  const lastRow = sheet.getLastRow();
 
   if (lastRow < 2) {
     return;
   }
 
-  var archivePathCol = LOG_HEADER_INDEX_.archiveRelativePath + 1;
-  var statusCol = LOG_HEADER_INDEX_.status + 1;
-  var range = sheet.getRange(2, 1, lastRow - 1, LOG_HEADERS_.length);
-  var values = range.getValues();
-  var changed = false;
+  const archivePathCol = LOG_HEADER_INDEX_.archiveRelativePath + 1;
+  const statusCol = LOG_HEADER_INDEX_.status + 1;
+  const range = sheet.getRange(2, 1, lastRow - 1, LOG_HEADERS_.length);
+  const values = range.getValues();
+  let changed = false;
 
-  for (var i = 0; i < values.length; i++) {
-    var status = String(values[i][statusCol - 1] || "");
+  for (let i = 0; i < values.length; i++) {
+    const status = String(values[i][statusCol - 1] || "");
     if (status !== "renamed" && status !== "copy_failed") {
       continue;
     }
 
-    var currentPath = String(values[i][archivePathCol - 1] || "");
-    var newPath = reverseArchivePathSegments_(currentPath);
+    const currentPath = String(values[i][archivePathCol - 1] || "");
+    const newPath = reverseArchivePathSegments_(currentPath);
 
     if (newPath !== currentPath && currentPath.split("/").length === 2) {
       values[i][archivePathCol - 1] = newPath;

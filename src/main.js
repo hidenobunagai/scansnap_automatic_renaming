@@ -22,7 +22,54 @@ const WRITABLE_SCRIPT_PROPERTIES_ = Object.freeze([
   "MAX_ISSUER_LENGTH",
   "MAX_DOCUMENT_TYPE_LENGTH",
   "NOTIFICATION_EMAIL",
+  "NOTIFICATION_WEBHOOK_URL",
+  "PDF_INPUT_MODE",
 ]);
+
+function onOpen() {
+  if (typeof SpreadsheetApp !== "undefined" && SpreadsheetApp.getUi) {
+    try {
+      SpreadsheetApp.getUi()
+        .createMenu("ScanSnap操作")
+        .addItem("未処理分を即時実行", "runScanRenameJob")
+        .addItem("選択行を再処理(status=retry)", "retrySelectedScanRenameRows")
+        .addToUi();
+    } catch (ignore) {
+      // Standalone script execution without active spreadsheet UI
+    }
+  }
+}
+
+function retrySelectedScanRenameRows() {
+  if (typeof SpreadsheetApp === "undefined" || !SpreadsheetApp.getActiveSpreadsheet) {
+    return;
+  }
+
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const range = spreadsheet.getActiveRange();
+
+  if (!range) {
+    return;
+  }
+
+  const sheet = spreadsheet.getActiveSheet();
+  const startRow = Math.max(2, range.getRow());
+  const numRows = range.getNumRows() - (startRow - range.getRow());
+
+  if (numRows > 0) {
+    const statusCol =
+      typeof LOG_HEADER_INDEX_ !== "undefined" && typeof LOG_HEADER_INDEX_.status === "number"
+        ? LOG_HEADER_INDEX_.status + 1
+        : 3;
+    sheet.getRange(startRow, statusCol, numRows, 1).setValue("retry");
+    if (typeof spreadsheet.toast === "function") {
+      spreadsheet.toast(
+        `${numRows}行を再処理(retry)に設定しました。次回実行時に再処理されます。`,
+        "ScanSnap",
+      );
+    }
+  }
+}
 
 function setupScanRenameProject() {
   const config = getConfig_();
@@ -45,6 +92,15 @@ function setupScanRenameProject() {
 function runScanRenameJob() {
   const config = getConfig_();
   validateRunConfig_(config);
+  try {
+    cleanupOcrTempDocuments_();
+  } catch (error) {
+    if (typeof logError_ === "function") {
+      logError_("OCR temp cleanup encountered an error during scan rename job.", {
+        error: getErrorMessage_(error),
+      });
+    }
+  }
   const logState = getLogState_(config);
   const candidates = listPendingPdfFiles_(config, logState.fileStateMap);
   const counts = {
@@ -185,6 +241,8 @@ function getScriptPropertiesTemplate() {
     `MAX_ISSUER_LENGTH=${DEFAULTS_.maxIssuerLength}`,
     `MAX_DOCUMENT_TYPE_LENGTH=${DEFAULTS_.maxDocumentTypeLength}`,
     "NOTIFICATION_EMAIL=",
+    "NOTIFICATION_WEBHOOK_URL=",
+    `PDF_INPUT_MODE=${DEFAULTS_.pdfInputMode}`,
   ].join("\n");
 }
 
@@ -203,27 +261,35 @@ function processSinglePdfFile_(fileMeta, config, logSheet, fileState) {
       return retryArchiveCopyForFile_(fileMeta, archiveRetryState, config, logSheet);
     }
 
-    const extractedText = extractTextFromPdf_(fileMeta.id, config);
+    let suggestion = null;
+    let extractedText = "";
 
-    if (extractedText.length < 20) {
-      return logProcessingResult_(logSheet, fileMeta, {
-        status: "review_needed",
-        suggestedName: "",
-        finalName: "",
-        confidence: 0,
-        documentDate: "",
-        issuer: "",
-        documentType: "",
-        subject: "",
-        summary: "",
-        archiveRelativePath: "",
-        archiveFinalName: "",
-        archiveFileId: "",
-        errorMessage: "OCR returned too little text to build a reliable filename.",
-      });
+    if (config.pdfInputMode === "direct_ai" && config.aiProvider === "gemini") {
+      const pdfBlob = DriveApp.getFileById(fileMeta.id).getBlob();
+      suggestion = requestRenameSuggestionDirect_(pdfBlob, fileMeta, config);
+    } else {
+      extractedText = extractTextFromPdf_(fileMeta.id, config);
+
+      if (extractedText.length < 20) {
+        return logProcessingResult_(logSheet, fileMeta, {
+          status: "review_needed",
+          suggestedName: "",
+          finalName: "",
+          confidence: 0,
+          documentDate: "",
+          issuer: "",
+          documentType: "",
+          subject: "",
+          summary: "",
+          archiveRelativePath: "",
+          archiveFinalName: "",
+          archiveFileId: "",
+          errorMessage: "OCR returned too little text to build a reliable filename.",
+        });
+      }
+
+      suggestion = requestRenameSuggestion_(extractedText, fileMeta, config);
     }
-
-    const suggestion = requestRenameSuggestion_(extractedText, fileMeta, config);
     const archiveRelativePath = buildArchiveRelativePath_(suggestion, config);
     const isConfident = suggestion.confidence >= config.minConfidence;
     const suggestedName = ensureUniqueFileName_(
@@ -591,42 +657,62 @@ function getSafeConfigSummary_(config) {
     logSheetName: config.logSheetName,
     filenamePatternHint: config.filenamePatternHint,
     triggerMinutes: config.triggerMinutes,
+    pdfInputMode: config.pdfInputMode,
     notificationEmail: config.notificationEmail ? "(set)" : "",
+    notificationWebhookUrl: config.notificationWebhookUrl ? "(set)" : "",
   };
 }
 
 function maybeSendFailureNotification_(summary, config) {
-  var email = collapseWhitespace_(config.notificationEmail || "");
-  if (!email) return;
-  var failed = (summary.counts.error || 0) + (summary.counts.copy_failed || 0);
+  const failed = (summary.counts.error || 0) + (summary.counts.copy_failed || 0);
   if (failed === 0) return;
-  var subject =
-    "[ScanSnap] " +
-    failed +
-    "件の処理失敗 (" +
-    summary.counts.error +
-    " error, " +
-    summary.counts.copy_failed +
-    " copy_failed)";
-  var body = [
+
+  const subject = `[ScanSnap] ${failed}件の処理失敗 (${summary.counts.error} error, ${summary.counts.copy_failed} copy_failed)`;
+  const body = [
     "ScanSnap automatic renaming で失敗が発生しました。",
     "",
-    "processed: " + summary.processed,
-    "counts: " + JSON.stringify(summary.counts),
-    "logSpreadsheetId: " + summary.logSpreadsheetId,
+    `processed: ${summary.processed}`,
+    `counts: ${JSON.stringify(summary.counts)}`,
+    `logSpreadsheetId: ${summary.logSpreadsheetId}`,
     "",
     "詳細はスプレッドシートの scan_rename_log シートで errorMessage 列を確認してください。",
     "docs/runbook.md も参照。",
   ].join("\n");
-  try {
-    if (typeof MailApp !== "undefined" && MailApp.sendEmail) {
-      MailApp.sendEmail(email, subject, body);
-      logInfo_("Failure notification sent.", { to: email, failed: failed });
+
+  const email = collapseWhitespace_(config.notificationEmail || "");
+  if (email) {
+    try {
+      if (typeof MailApp !== "undefined" && MailApp.sendEmail) {
+        MailApp.sendEmail(email, subject, body);
+        logInfo_("Failure notification sent.", { to: email, failed: failed });
+      }
+    } catch (error) {
+      logError_("Failed to send failure notification.", {
+        to: email,
+        error: getErrorMessage_(error),
+      });
     }
-  } catch (error) {
-    logError_("Failed to send failure notification.", {
-      to: email,
-      error: getErrorMessage_(error),
-    });
+  }
+
+  const webhookUrl = collapseWhitespace_(config.notificationWebhookUrl || "");
+  if (webhookUrl) {
+    try {
+      if (typeof UrlFetchApp !== "undefined" && UrlFetchApp.fetch) {
+        UrlFetchApp.fetch(webhookUrl, {
+          method: "post",
+          contentType: "application/json",
+          payload: JSON.stringify({
+            text: `${subject}\n\n${body}`,
+            summary: summary,
+          }),
+        });
+        logInfo_("Failure webhook notification sent.", { failed: failed });
+      }
+    } catch (error) {
+      logError_("Failed to send failure webhook notification.", {
+        webhookUrl: webhookUrl,
+        error: getErrorMessage_(error),
+      });
+    }
   }
 }

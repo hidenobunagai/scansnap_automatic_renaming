@@ -78,6 +78,7 @@ function buildSetupRequest() {
       TIMEZONE: getOptionalEnv("TIMEZONE") || "Asia/Tokyo",
       FILENAME_PATTERN_HINT:
         getOptionalEnv("FILENAME_PATTERN_HINT") || "YYYY-MM-DD_発行元_書類種別_要点",
+      USER_WEAK_ISSUER_LABELS: getOptionalEnv("USER_WEAK_ISSUER_LABELS"),
       LOG_SPREADSHEET_ID: getOptionalEnv("LOG_SPREADSHEET_ID"),
       LOG_SHEET_NAME: getOptionalEnv("LOG_SHEET_NAME") || "scan_rename_log",
       MAX_PROMPT_CHARS: getOptionalEnv("MAX_PROMPT_CHARS") || "12000",
@@ -85,6 +86,8 @@ function buildSetupRequest() {
       MAX_ISSUER_LENGTH: getOptionalEnv("MAX_ISSUER_LENGTH") || "30",
       MAX_DOCUMENT_TYPE_LENGTH: getOptionalEnv("MAX_DOCUMENT_TYPE_LENGTH") || "30",
       NOTIFICATION_EMAIL: getOptionalEnv("NOTIFICATION_EMAIL"),
+      NOTIFICATION_WEBHOOK_URL: getOptionalEnv("NOTIFICATION_WEBHOOK_URL"),
+      PDF_INPUT_MODE: getOptionalEnv("PDF_INPUT_MODE") || "drive_ocr",
     },
     installTrigger: (getOptionalEnv("INSTALL_TRIGGER") || "true").toLowerCase() !== "false",
   };

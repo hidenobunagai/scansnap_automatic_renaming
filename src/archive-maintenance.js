@@ -3,13 +3,13 @@
 // Kept separate from archive.js for maintainability.
 
 function inferCorrectedIssuerForArchiveFolder_(issuerFolderName, signals, config) {
-  var currentIssuer = normalizeIssuerText_(issuerFolderName);
+  const currentIssuer = normalizeIssuerText_(issuerFolderName);
 
   if (!isWeakIssuerLabel_(currentIssuer, config)) {
     return currentIssuer;
   }
 
-  var candidates = dedupeOrderedParts_(
+  const candidates = dedupeOrderedParts_(
     extractOrganizationCandidates_(signals.text || "")
       .concat(extractOrganizationCandidates_(signals.subject || ""))
       .concat(extractOrganizationCandidates_(signals.summary || ""))
@@ -17,9 +17,9 @@ function inferCorrectedIssuerForArchiveFolder_(issuerFolderName, signals, config
   ).map(function (candidate) {
     return normalizeIssuerText_(stripPdfExtension_(candidate));
   });
-  var strongCandidates = [];
+  let strongCandidates = [];
 
-  for (var i = 0; i < candidates.length; i++) {
+  for (let i = 0; i < candidates.length; i++) {
     if (!isWeakIssuerLabel_(candidates[i], config)) {
       strongCandidates.push(candidates[i]);
     }
@@ -28,12 +28,12 @@ function inferCorrectedIssuerForArchiveFolder_(issuerFolderName, signals, config
   strongCandidates = dedupeOrderedParts_(strongCandidates);
 
   if (strongCandidates.length > 1) {
-    var minimal = [];
+    const minimal = [];
 
-    for (var i = 0; i < strongCandidates.length; i++) {
-      var isSuperset = false;
+    for (let i = 0; i < strongCandidates.length; i++) {
+      let isSuperset = false;
 
-      for (var j = 0; j < strongCandidates.length; j++) {
+      for (let j = 0; j < strongCandidates.length; j++) {
         if (
           i !== j &&
           strongCandidates[i].indexOf(strongCandidates[j]) !== -1 &&
@@ -85,10 +85,10 @@ function isInvertedArchiveHierarchy_(issuerFolderName, documentTypeFolders, conf
     return false;
   }
 
-  for (var i = 0; i < documentTypeFolders.length; i++) {
-    var name = documentTypeFolders[i].title;
+  for (let i = 0; i < documentTypeFolders.length; i++) {
+    const name = documentTypeFolders[i].title;
 
-    for (var j = 0; j < ORGANIZATION_MARKERS_.length; j++) {
+    for (let j = 0; j < ORGANIZATION_MARKERS_.length; j++) {
       if (name.indexOf(ORGANIZATION_MARKERS_[j]) !== -1) {
         return true;
       }
@@ -99,38 +99,38 @@ function isInvertedArchiveHierarchy_(issuerFolderName, documentTypeFolders, conf
 }
 
 function buildInvertedArchiveFileName_(fileName, correctedIssuer, oldIssuer) {
-  var name = String(fileName || "");
-  var extMatch = name.match(/^(.*)\.(\w+)$/);
+  const name = String(fileName || "");
+  const extMatch = name.match(/^(.*)\.(\w+)$/);
 
   if (!extMatch) return name;
 
-  var baseName = extMatch[1];
-  var ext = extMatch[2];
-  var segments = baseName.split("_");
+  const baseName = extMatch[1];
+  const ext = extMatch[2];
+  const segments = baseName.split("_");
 
   if (segments.length < 3) return name;
 
   segments[1] = correctedIssuer;
   segments[2] = oldIssuer;
 
-  var result = segments.join("_") + "." + ext;
+  const result = `${segments.join("_")}.${ext}`;
   return result !== name ? result : name;
 }
 
 function migrateArchiveFolderStructure() {
-  var config = getConfig_();
-  var archiveRootFolderId = requireArchiveRootFolderId_(config);
-  var propertiesService = getScriptProperties_();
-  var lastMigrated = propertiesService.getProperty("lastMigratedDocumentType") || "";
+  const config = getConfig_();
+  const archiveRootFolderId = requireArchiveRootFolderId_(config);
+  const propertiesService = getScriptProperties_();
+  const lastMigrated = propertiesService.getProperty("lastMigratedDocumentType") || "";
 
-  var documentTypeFolders = listDirectChildFolders_(archiveRootFolderId);
-  var counts = {
+  const documentTypeFolders = listDirectChildFolders_(archiveRootFolderId);
+  const counts = {
     movedFiles: 0,
     failedFiles: 0,
     deletedFolders: 0,
     skippedFolders: 0,
   };
-  var errors = [];
+  const errors = [];
 
   documentTypeFolders.forEach(function (docTypeFolder) {
     if (lastMigrated && docTypeFolder.title <= lastMigrated) {
@@ -138,21 +138,21 @@ function migrateArchiveFolderStructure() {
       return;
     }
 
-    var issuerFolders = listDirectChildFolders_(docTypeFolder.id);
+    const issuerFolders = listDirectChildFolders_(docTypeFolder.id);
 
     issuerFolders.forEach(function (issuerFolder) {
-      var files = listFilesInFolder_(issuerFolder.id);
+      const files = listFilesInFolder_(issuerFolder.id);
 
       files.forEach(function (file) {
         try {
-          var newPath = issuerFolder.title + "/" + docTypeFolder.title;
-          var targetFolder = ensureArchiveFolderByPath_(archiveRootFolderId, newPath);
+          const newPath = `${issuerFolder.title}/${docTypeFolder.title}`;
+          const targetFolder = ensureArchiveFolderByPath_(archiveRootFolderId, newPath);
           moveDriveFileToFolder_(file.id, targetFolder.id);
           counts.movedFiles += 1;
         } catch (error) {
           counts.failedFiles += 1;
           errors.push({
-            source: "file:" + file.id,
+            source: `file:${file.id}`,
             message: getErrorMessage_(error),
           });
         }
@@ -176,13 +176,13 @@ function migrateArchiveFolderStructure() {
     propertiesService.setProperty("lastMigratedDocumentType", docTypeFolder.title);
   });
 
-  var logPathsMigrated = counts.failedFiles === 0;
+  const logPathsMigrated = counts.failedFiles === 0;
 
   if (logPathsMigrated) {
     migrateArchivePathsInLog_(config);
   }
 
-  var summary = {
+  const summary = {
     movedFiles: counts.movedFiles,
     failedFiles: counts.failedFiles,
     deletedFolders: counts.deletedFolders,
@@ -199,12 +199,12 @@ function migrateArchiveFolderStructure() {
 }
 
 function normalizeArchiveIssuerNames() {
-  var config = getConfig_();
-  var archiveRootFolderId = requireArchiveRootFolderId_(config);
-  var propertiesService = getScriptProperties_();
-  var lastNormalized = propertiesService.getProperty("lastNormalizedIssuerFolder") || "";
-  var issuerFolders = listDirectChildFolders_(archiveRootFolderId);
-  var counts = {
+  const config = getConfig_();
+  const archiveRootFolderId = requireArchiveRootFolderId_(config);
+  const propertiesService = getScriptProperties_();
+  const lastNormalized = propertiesService.getProperty("lastNormalizedIssuerFolder") || "";
+  const issuerFolders = listDirectChildFolders_(archiveRootFolderId);
+  const counts = {
     renamedFolders: 0,
     mergedFolders: 0,
     renamedFiles: 0,
@@ -212,7 +212,7 @@ function normalizeArchiveIssuerNames() {
     skippedFolders: 0,
     failedItems: 0,
   };
-  var errors = [];
+  const errors = [];
 
   issuerFolders.forEach(function (issuerFolder) {
     if (lastNormalized && issuerFolder.title <= lastNormalized) {
@@ -221,12 +221,12 @@ function normalizeArchiveIssuerNames() {
     }
 
     try {
-      var normalizedIssuer = normalizeIssuerText_(issuerFolder.title);
-      var destinationFolder = issuerFolder;
-      var issuerHadFailure = false;
+      const normalizedIssuer = normalizeIssuerText_(issuerFolder.title);
+      let destinationFolder = issuerFolder;
+      let issuerHadFailure = false;
 
       if (normalizedIssuer && normalizedIssuer !== issuerFolder.title) {
-        var existingFolder = findChildFolder_(archiveRootFolderId, normalizedIssuer);
+        const existingFolder = findChildFolder_(archiveRootFolderId, normalizedIssuer);
 
         if (existingFolder) {
           destinationFolder = existingFolder;
@@ -241,14 +241,14 @@ function normalizeArchiveIssuerNames() {
       }
 
       listDirectChildFolders_(issuerFolder.id).forEach(function (documentTypeFolder) {
-        var destinationDocumentTypeFolder = ensureArchiveFolderByPath_(
+        const destinationDocumentTypeFolder = ensureArchiveFolderByPath_(
           archiveRootFolderId,
-          destinationFolder.title + "/" + documentTypeFolder.title,
+          `${destinationFolder.title}/${documentTypeFolder.title}`,
         );
 
         listFilesInFolder_(documentTypeFolder.id).forEach(function (file) {
           try {
-            var nextFileName = buildNormalizedArchiveFileName_(
+            const nextFileName = buildNormalizedArchiveFileName_(
               file.title,
               issuerFolder.title,
               destinationFolder.title,
@@ -266,7 +266,7 @@ function normalizeArchiveIssuerNames() {
             issuerHadFailure = true;
             counts.failedItems += 1;
             errors.push({
-              source: "file:" + file.id,
+              source: `file:${file.id}`,
               message: getErrorMessage_(error),
             });
           }
@@ -298,13 +298,13 @@ function normalizeArchiveIssuerNames() {
     } catch (error) {
       counts.failedItems += 1;
       errors.push({
-        source: "issuer:" + issuerFolder.id,
+        source: `issuer:${issuerFolder.id}`,
         message: getErrorMessage_(error),
       });
     }
   });
 
-  var summary = {
+  const summary = {
     renamedFolders: counts.renamedFolders,
     mergedFolders: counts.mergedFolders,
     renamedFiles: counts.renamedFiles,
@@ -320,12 +320,12 @@ function normalizeArchiveIssuerNames() {
 }
 
 function correctArchiveIssuerFolders() {
-  var config = getConfig_();
-  var archiveRootFolderId = requireArchiveRootFolderId_(config);
-  var propertiesService = getScriptProperties_();
-  var lastCorrected = propertiesService.getProperty("lastCorrectedIssuerFolder") || "";
-  var issuerFolders = listDirectChildFolders_(archiveRootFolderId);
-  var counts = {
+  const config = getConfig_();
+  const archiveRootFolderId = requireArchiveRootFolderId_(config);
+  const propertiesService = getScriptProperties_();
+  const lastCorrected = propertiesService.getProperty("lastCorrectedIssuerFolder") || "";
+  const issuerFolders = listDirectChildFolders_(archiveRootFolderId);
+  const counts = {
     correctedFolders: 0,
     mergedFolders: 0,
     renamedFiles: 0,
@@ -333,7 +333,7 @@ function correctArchiveIssuerFolders() {
     skippedFolders: 0,
     failedItems: 0,
   };
-  var errors = [];
+  const errors = [];
 
   issuerFolders.forEach(function (issuerFolder) {
     if (lastCorrected && issuerFolder.title <= lastCorrected) {
@@ -342,9 +342,9 @@ function correctArchiveIssuerFolders() {
     }
 
     try {
-      var documentTypeFolders = listDirectChildFolders_(issuerFolder.id);
-      var fileNames = [];
-      var issuerHadFailure = false;
+      const documentTypeFolders = listDirectChildFolders_(issuerFolder.id);
+      const fileNames = [];
+      let issuerHadFailure = false;
 
       documentTypeFolders.forEach(function (documentTypeFolder) {
         listFilesInFolder_(documentTypeFolder.id).forEach(function (file) {
@@ -352,9 +352,9 @@ function correctArchiveIssuerFolders() {
         });
       });
 
-      var logRows = getIssuerLogRows_(issuerFolder.title, fileNames, config);
+      const logRows = getIssuerLogRows_(issuerFolder.title, fileNames, config);
 
-      var correctedIssuer = inferCorrectedIssuerForArchiveFolder_(
+      const correctedIssuer = inferCorrectedIssuerForArchiveFolder_(
         issuerFolder.title,
         buildArchiveCorrectionSignals_(logRows, fileNames),
         config,
@@ -365,9 +365,13 @@ function correctArchiveIssuerFolders() {
         return;
       }
 
-      var isInverted = isInvertedArchiveHierarchy_(issuerFolder.title, documentTypeFolders, config);
-      var existingDestination = findChildFolder_(archiveRootFolderId, correctedIssuer);
-      var destinationFolder =
+      const isInverted = isInvertedArchiveHierarchy_(
+        issuerFolder.title,
+        documentTypeFolders,
+        config,
+      );
+      const existingDestination = findChildFolder_(archiveRootFolderId, correctedIssuer);
+      const destinationFolder =
         existingDestination || ensureArchiveFolderByPath_(archiveRootFolderId, correctedIssuer);
 
       if (existingDestination && existingDestination.id !== issuerFolder.id) {
@@ -375,15 +379,15 @@ function correctArchiveIssuerFolders() {
       }
 
       documentTypeFolders.forEach(function (documentTypeFolder) {
-        var effectiveDocType = isInverted ? issuerFolder.title : documentTypeFolder.title;
-        var destinationDocumentTypeFolder = ensureArchiveFolderByPath_(
+        const effectiveDocType = isInverted ? issuerFolder.title : documentTypeFolder.title;
+        const destinationDocumentTypeFolder = ensureArchiveFolderByPath_(
           archiveRootFolderId,
-          correctedIssuer + "/" + effectiveDocType,
+          `${correctedIssuer}/${effectiveDocType}`,
         );
 
         listFilesInFolder_(documentTypeFolder.id).forEach(function (file) {
           try {
-            var nextFileName = isInverted
+            const nextFileName = isInverted
               ? buildInvertedArchiveFileName_(file.title, correctedIssuer, issuerFolder.title)
               : buildNormalizedArchiveFileName_(file.title, issuerFolder.title, correctedIssuer);
 
@@ -397,7 +401,7 @@ function correctArchiveIssuerFolders() {
             issuerHadFailure = true;
             counts.failedItems += 1;
             errors.push({
-              source: "file:" + file.id,
+              source: `file:${file.id}`,
               message: getErrorMessage_(error),
             });
           }
@@ -424,13 +428,13 @@ function correctArchiveIssuerFolders() {
     } catch (error) {
       counts.failedItems += 1;
       errors.push({
-        source: "issuer:" + issuerFolder.id,
+        source: `issuer:${issuerFolder.id}`,
         message: getErrorMessage_(error),
       });
     }
   });
 
-  var summary = {
+  const summary = {
     correctedFolders: counts.correctedFolders,
     mergedFolders: counts.mergedFolders,
     renamedFiles: counts.renamedFiles,

@@ -16,6 +16,8 @@ const DEFAULTS_ = Object.freeze({
   maxDocumentTypeLength: 30,
   triggerMinutes: 15,
   notificationEmail: "",
+  notificationWebhookUrl: "",
+  pdfInputMode: "drive_ocr",
 });
 
 function getConfig_() {
@@ -92,6 +94,9 @@ function getConfig_() {
       parseNumberProperty_(properties, "TRIGGER_MINUTES", DEFAULTS_.triggerMinutes),
     ),
     userWeakIssuerLabels: getStringProperty_(properties, "USER_WEAK_ISSUER_LABELS", ""),
+    pdfInputMode: normalizePdfInputMode_(
+      getStringProperty_(properties, "PDF_INPUT_MODE", DEFAULTS_.pdfInputMode),
+    ),
     geminiApiKey:
       aiProvider === "gemini" ? requireStringProperty_(properties, "GEMINI_API_KEY") : "",
     openAiApiKey:
@@ -102,6 +107,7 @@ function getConfig_() {
       "https://api.openai.com/v1/chat/completions",
     ),
     notificationEmail: getStringProperty_(properties, "NOTIFICATION_EMAIL", ""),
+    notificationWebhookUrl: getStringProperty_(properties, "NOTIFICATION_WEBHOOK_URL", ""),
   };
 }
 
@@ -155,6 +161,16 @@ function normalizeRenameMode_(value) {
   throw new Error("RENAME_MODE must be either review or rename.");
 }
 
+function normalizePdfInputMode_(value) {
+  const normalized = String(value || "").toLowerCase();
+
+  if (normalized === "drive_ocr" || normalized === "direct_ai") {
+    return normalized;
+  }
+
+  return DEFAULTS_.pdfInputMode;
+}
+
 function normalizeAiProvider_(value) {
   const normalized = String(value || "").toLowerCase();
 
@@ -177,10 +193,10 @@ function normalizeTriggerMinutes_(value) {
 }
 
 function normalizeAiModel_(provider, model) {
-  var m = String(model || "").trim();
+  const m = String(model || "").trim();
   if (!m) return m;
-  var isGeminiLike = m.indexOf("gemini-") === 0;
-  var isOpenAiLike = m.indexOf("gpt-") === 0 || m.indexOf("o1") === 0 || m.indexOf("o3") === 0;
+  const isGeminiLike = m.indexOf("gemini-") === 0;
+  const isOpenAiLike = m.indexOf("gpt-") === 0 || m.indexOf("o1") === 0 || m.indexOf("o3") === 0;
   if (provider === "gemini" && !isGeminiLike) {
     if (typeof logError_ === "function") {
       logError_("AI_MODEL for gemini should start with gemini-", { aiModel: m });
