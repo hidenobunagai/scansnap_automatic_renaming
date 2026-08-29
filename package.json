@@ -12,11 +12,11 @@
     "format": "prettier --write src scripts tests package.json",
     "format:check": "prettier --check src scripts tests package.json",
     "env:init": "node scripts/init-local-env.mjs",
-    "clasp:configure": "dotenvx run -- node scripts/write-clasp-config.mjs",
-    "clasp:push": "bun run clasp:configure && clasp push",
-    "clasp:pull": "bun run clasp:configure && clasp pull",
-    "clasp:open": "bun run clasp:configure && clasp open",
-    "setup:remote": "dotenvx run -- node scripts/bootstrap-remote-setup.mjs"
+    "clasp:configure": "npx -y @dotenvx/dotenvx run -- node scripts/write-clasp-config.mjs",
+    "clasp:push": "bun run clasp:configure && npx -y @google/clasp push",
+    "clasp:pull": "bun run clasp:configure && npx -y @google/clasp pull",
+    "clasp:open": "bun run clasp:configure && npx -y @google/clasp open",
+    "setup:remote": "npx -y @dotenvx/dotenvx run -- node scripts/bootstrap-remote-setup.mjs"
   },
   "devDependencies": {
     "eslint": "9",
