@@ -1,0 +1,259 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "ScanSnap Automatic Renaming Architecture",
+    "output": "docs/index.html",
+    "quality_profile": "showcase",
+    "viewBox": [920, 410],
+    "repository": {
+      "url": "https://github.com/hidenobunagai/scansnap_automatic_renaming",
+      "revision": "49131ec029e670bc6a6cc113fe0483b508beb251"
+    },
+    "views": [
+      {
+        "id": "scan-and-ingest",
+        "label": "1. Scan & Ingest",
+        "focus": ["scansnap", "inbox-folder", "gas-trigger", "job-runner"],
+        "note": "ScanSnap uploads PDFs to Google Drive, and the scheduled trigger invokes Apps Script."
+      },
+      {
+        "id": "ocr-and-ai",
+        "label": "2. OCR & AI Analysis",
+        "focus": ["job-runner", "drive-ocr", "ai-engine"],
+        "note": "Drive OCR extracts document text, and Gemini/OpenAI infers naming metadata."
+      },
+      {
+        "id": "archive-and-log",
+        "label": "3. Archive & Audit",
+        "focus": ["job-runner", "archive-folder", "log-sheet", "mail-notifier"],
+        "note": "Files are archived into structured folders, logged to Spreadsheet, and failures alert admin."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "scansnap",
+      "type": "external",
+      "label": "ScanSnap",
+      "sublabel": "Hardware Scanner",
+      "pos": [40, 180],
+      "size": [130, 56],
+      "tag": "Wi-Fi Cloud Scan"
+    },
+    {
+      "id": "inbox-folder",
+      "type": "database",
+      "label": "Inbox Folder",
+      "sublabel": "Google Drive",
+      "pos": [260, 180],
+      "size": [140, 56],
+      "tag": "SCANSNAP_FOLDER_ID",
+      "sources": [
+        { "path": "src/drive.js", "line": 20, "label": "listPendingPdfFiles_" }
+      ]
+    },
+    {
+      "id": "gas-trigger",
+      "type": "cloud",
+      "label": "Time Trigger",
+      "sublabel": "Apps Script Cron",
+      "pos": [260, 40],
+      "size": [140, 56],
+      "tag": "Every 15 min",
+      "sources": [
+        { "path": "src/main.js", "line": 85, "label": "installScanRenameTrigger" }
+      ]
+    },
+    {
+      "id": "job-runner",
+      "type": "backend",
+      "label": "Job Runner",
+      "sublabel": "Apps Script Engine",
+      "pos": [490, 180],
+      "size": [150, 56],
+      "tag": "runScanRenameJob",
+      "sources": [
+        { "path": "src/main.js", "line": 45, "label": "runScanRenameJob" },
+        { "path": "src/main.js", "line": 197, "label": "processSinglePdfFile_" }
+      ]
+    },
+    {
+      "id": "drive-ocr",
+      "type": "cloud",
+      "label": "Drive OCR",
+      "sublabel": "PDF to Text",
+      "pos": [490, 40],
+      "size": [150, 56],
+      "tag": "OCR_LANGUAGE=ja",
+      "sources": [
+        { "path": "src/ocr.js", "line": 1, "label": "extractTextFromPdf_" }
+      ]
+    },
+    {
+      "id": "ai-engine",
+      "type": "cloud",
+      "label": "Gemini / OpenAI",
+      "sublabel": "Structured Extraction",
+      "brand": "google-gemini",
+      "pos": [730, 40],
+      "size": [150, 56],
+      "tag": "JSON Schema",
+      "sources": [
+        { "path": "src/ai.js", "line": 1, "label": "requestRenameSuggestion_" }
+      ]
+    },
+    {
+      "id": "archive-folder",
+      "type": "database",
+      "label": "Archive Shared Drive",
+      "sublabel": "Issuer / DocType hierarchy",
+      "pos": [730, 180],
+      "size": [150, 56],
+      "tag": "ARCHIVE_ROOT_FOLDER_ID",
+      "sources": [
+        { "path": "src/archive.js", "line": 1, "label": "copyFileToArchiveStructure_" }
+      ]
+    },
+    {
+      "id": "log-sheet",
+      "type": "database",
+      "label": "Audit Log Sheet",
+      "sublabel": "Google Spreadsheet",
+      "pos": [490, 310],
+      "size": [150, 56],
+      "tag": "scan_rename_log",
+      "sources": [
+        { "path": "src/log-sheet.js", "line": 1, "label": "logProcessingResult_" }
+      ]
+    },
+    {
+      "id": "mail-notifier",
+      "type": "external",
+      "label": "Failure Alert",
+      "sublabel": "Gmail Notification",
+      "pos": [730, 310],
+      "size": [150, 56],
+      "tag": "NOTIFICATION_EMAIL",
+      "sources": [
+        { "path": "src/main.js", "line": 80, "label": "maybeSendFailureNotification_" }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Google Workspace & Apps Script Platform",
+      "wraps": ["inbox-folder", "gas-trigger", "job-runner", "drive-ocr", "archive-folder", "log-sheet"]
+    },
+    {
+      "kind": "security-group",
+      "label": "AI API Boundary",
+      "wraps": ["ai-engine"]
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn-scan-upload",
+      "from": "scansnap",
+      "to": "inbox-folder",
+      "label": "PDF upload",
+      "variant": "default"
+    },
+    {
+      "id": "conn-trigger-start",
+      "from": "gas-trigger",
+      "to": "job-runner",
+      "label": "schedule",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "top",
+      "labelDy": 20
+    },
+    {
+      "id": "conn-fetch-files",
+      "from": "inbox-folder",
+      "to": "job-runner",
+      "label": "fetch PDF",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "conn-extract-ocr",
+      "from": "job-runner",
+      "to": "drive-ocr",
+      "label": "extract text",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "labelDy": -25
+    },
+    {
+      "id": "conn-ai-inference",
+      "from": "drive-ocr",
+      "to": "ai-engine",
+      "label": "prompt text",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "conn-archive-copy",
+      "from": "ai-engine",
+      "to": "archive-folder",
+      "label": "archive & rename",
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 30
+    },
+    {
+      "id": "conn-log-append",
+      "from": "job-runner",
+      "to": "log-sheet",
+      "label": "audit log",
+      "variant": "default",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 30
+    },
+    {
+      "id": "conn-notify-error",
+      "from": "job-runner",
+      "to": "mail-notifier",
+      "label": "error alert",
+      "variant": "security",
+      "fromSide": "right",
+      "toSide": "left"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Ingestion & Trigger",
+      "items": [
+        "ScanSnap scans paper directly to Google Drive inbox folder",
+        "Apps Script time-driven trigger runs batch job every 15 minutes",
+        "Filters unstable files (< FILE_STABLE_MINUTES) to prevent partial reads"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "OCR & AI Renaming",
+      "items": [
+        "Google Drive native OCR converts PDF pages into raw text without external OCR services",
+        "Gemini or OpenAI parses structured fields: document date, issuer, type, and subject",
+        "Normalizes issuer names to half-width alphanumeric and resolves weak issuer fallbacks"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Archive & Audit Log",
+      "items": [
+        "Organizes files into [Issuer]/[DocumentType] folder structure in family shared drive",
+        "Avoids duplicate filenames with _2, _3 suffixes and logs full execution history to Sheets",
+        "Sends failure alert emails on OCR/copy errors, supporting review dry-run and rename modes"
+      ]
+    }
+  ]
+}
