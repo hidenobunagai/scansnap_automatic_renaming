@@ -4,7 +4,9 @@ Google Drive 上の ScanSnap PDF を定期的に見に行き、OCR と AI で分
 
 初期構成は小規模運用向けに `Google Apps Script + Drive + Spreadsheet log + external AI` でまとめています。重い OCR や高頻度処理が必要になったら、OCR / AI 部分だけ Cloud Run に切り出せる前提の作りです。
 
-![アーキテクチャ概要: 全体の流れ / 内部処理の仕組み / ファイル名＆アーカイブ構造](docs/scansnap_automatic_renaming_summary.png)
+[![Architecture Overview](docs/architecture-overview.png)](https://hidenobunagai.github.io/scansnap_automatic_renaming/)
+
+> 🌐 **Interactive Architecture Diagram**: [GitHub Pages でインタラクティブ構成図を開く（テーマ切替・フォーカス・詳細確認）](https://hidenobunagai.github.io/scansnap_automatic_renaming/)
 
 ## What this project does
 
