@@ -1,35 +1,35 @@
 # ScanSnap automatic renaming
 
-Google Drive 上の ScanSnap PDF を定期的に見に行き、OCR と AI で分かりやすいファイル名へ変更する Google Apps Script プロジェクトです。
+A Google Apps Script project that periodically scans ScanSnap PDFs in Google Drive and renames them to descriptive filenames using OCR and AI.
 
-初期構成は小規模運用向けに `Google Apps Script + Drive + Spreadsheet log + external AI` でまとめています。重い OCR や高頻度処理が必要になったら、OCR / AI 部分だけ Cloud Run に切り出せる前提の作りです。
+The initial setup keeps things small with `Google Apps Script + Drive + Spreadsheet log + external AI`. It is built so that the OCR / AI part alone can be split out to Cloud Run once heavy OCR or high-frequency processing becomes necessary.
 
 [![Architecture Overview](docs/architecture-overview.png)](https://hidenobunagai.github.io/scansnap_automatic_renaming/)
 
-> 🌐 **Interactive Architecture Diagram**: [GitHub Pages でインタラクティブ構成図を開く（テーマ切替・フォーカス・詳細確認）](https://hidenobunagai.github.io/scansnap_automatic_renaming/)
+> 🌐 **Interactive Architecture Diagram**: [Open the interactive architecture diagram on GitHub Pages (theme switching, focus, detail view)](https://hidenobunagai.github.io/scansnap_automatic_renaming/)
 
 ## What this project does
 
-- 指定フォルダ内の新しい PDF を定期的に確認
-- Google Drive OCR でテキスト抽出
-- Gemini または OpenAI に命名候補を生成させる
-- `YYYY-MM-DD_発行元_書類種別_要点.pdf` 形式へ整形
-- `発行元(半角英数字へ正規化)/書類種別` のフォルダ構成で家族共有フォルダへコピー
-- 重複ファイル名は `_2`, `_3` を付けて回避
-- 結果をスプレッドシートへ記録
-- `review` と `rename` の 2 モードに対応
+- Periodically checks for new PDFs in the target folder
+- Extracts text with Google Drive OCR
+- Has Gemini or OpenAI generate naming candidates
+- Formats to the `YYYY-MM-DD_発行元_書類種別_要点.pdf` pattern (`YYYY-MM-DD_issuer_document-type_summary.pdf`)
+- Copies into a family-shared folder using the `発行元(半角英数字へ正規化)/書類種別` structure (issuer normalized to alphanumerics / document type)
+- Avoids duplicate filenames by appending `_2`, `_3`
+- Records results in a spreadsheet
+- Supports two modes, `review` and `rename`
 
 ## Files
 
-- `src/`: Apps Script に push する本体
-- `scripts/write-clasp-config.mjs`: `dotenvx` 管理の `CLASP_SCRIPT_ID` から `.clasp.json` を生成
-- `scripts/bootstrap-remote-setup.mjs`: `clasp` で properties 設定、初期化、trigger 作成まで進める
+- `src/`: the main code pushed to Apps Script
+- `scripts/write-clasp-config.mjs`: generates `.clasp.json` from the `dotenvx`-managed `CLASP_SCRIPT_ID`
+- `scripts/bootstrap-remote-setup.mjs`: uses `clasp` to set properties, initialize, and create the trigger
 
 ## Setup
 
-1. Google Apps Script で新しい standalone project を作ります。
-2. Apps Script の `Project Settings` から script ID を控えます。
-3. ローカルの `.env` を初期化して script ID を保存します。
+1. Create a new standalone project in Google Apps Script.
+2. Note the script ID from the Apps Script `Project Settings`.
+3. Initialize the local `.env` and save the script ID.
 
 ```bash
 bun run env:init
@@ -37,21 +37,21 @@ dotenvx set CLASP_SCRIPT_ID your-script-id
 dotenvx set CLASP_PROJECT_ID your-gcp-project-id
 ```
 
-4. `.clasp.json` を生成して push します。
+4. Generate `.clasp.json` and push.
 
 ```bash
 bun run clasp:push
 ```
 
-5. `clasp run` まで使う場合は、Apps Script の `Project Settings` でこの script を GCP project に紐付けます。
-6. その GCP project 上で `Desktop App` の OAuth client を作り、`client_secret.json` をローカルへ保存します。
-7. `clasp login --creds client_secret.json --use-project-scopes` を実行します。
-8. Apps Script 側の `Project Settings > Script properties` に必要な値を入れます。
-9. `setupScanRenameProject()` を 1 回実行して、ログ用スプレッドシートを自動作成します。
-10. 最初は `RENAME_MODE=review` のまま `runScanRenameJob()` を実行し、提案名を確認します。
-11. 問題なければ `RENAME_MODE=rename` に変更し、`installScanRenameTrigger()` を実行します。
+5. If you also want to use `clasp run`, link this script to a GCP project in the Apps Script `Project Settings`.
+6. Create a `Desktop App` OAuth client on that GCP project and save `client_secret.json` locally.
+7. Run `clasp login --creds client_secret.json --use-project-scopes`.
+8. Set the required values in `Project Settings > Script properties` on the Apps Script side.
+9. Run `setupScanRenameProject()` once to create the log spreadsheet automatically.
+10. Start with `RENAME_MODE=review` and run `runScanRenameJob()` to check the proposed names.
+11. Once everything looks fine, change to `RENAME_MODE=rename` and run `installScanRenameTrigger()`.
 
-または、必要な環境変数を `.env` に入れたうえで CLI からまとめて設定できます。
+Alternatively, put the required environment variables in `.env` and configure everything from the CLI.
 
 ```bash
 dotenvx set SCANSNAP_FOLDER_ID your-drive-folder-id
@@ -60,37 +60,37 @@ dotenvx set GEMINI_API_KEY your-gemini-api-key
 bun run setup:remote
 ```
 
-このコマンドは `clasp push`、API executable deployment、script properties 設定、ログ初期化、trigger 作成までまとめて実行します。
+This command does `clasp push`, API executable deployment, script property setup, log initialization, and trigger creation all at once.
 
-前提として、`clasp run` を使うための `GCP project` 紐付けと `client_secret.json` による再ログインが必要です。
+As a prerequisite, you need the `GCP project` link for `clasp run` and to log in again with `client_secret.json`.
 
 ## Required script properties
 
 | Key | Required | Example | Notes |
 | --- | --- | --- | --- |
-| `SCANSNAP_FOLDER_ID` | yes | `1AbCdEf...` | 監視対象の Drive folder ID |
-| `ARCHIVE_ROOT_FOLDER_ID` | rename時に必要 | `1FamilyFolder...` | 共有アーカイブ先の Drive folder ID |
-| `AI_PROVIDER` | no | `gemini` | `gemini` または `openai`。未指定時は `gemini` |
-| `GEMINI_API_KEY` | provider=gemini | `AIza...` | Gemini を使う場合 |
-| `OPENAI_API_KEY` | provider=openai | `sk-...` | OpenAI を使う場合 |
-| `OPENAI_BASE_URL` | provider=openai | `https://api.openai.com/v1/chat/completions` | OpenAI 互換エンドポイント |
-| `AI_MODEL` | no | `gemini-2.5-flash-lite` | 未指定時は provider ごとの既定値(`gemini`→`gemini-2.5-flash-lite`, `openai`→`gpt-4o-mini`) |
-| `RENAME_MODE` | no | `review` | `review` または `rename` |
-| `MIN_CONFIDENCE` | no | `0.75` | `rename` 時に自動確定する最低信頼度 |
-| `MAX_FILES_PER_RUN` | no | `5` | 1 回の実行で処理する最大件数 |
-| `FILE_STABLE_MINUTES` | no | `5` | 更新直後のファイルを避ける待機時間 |
-| `OCR_LANGUAGE` | no | `ja` | Drive OCR の言語 |
-| `TRIGGER_MINUTES` | no | `15` | `1, 5, 10, 15, 30` のいずれか |
-| `TIMEZONE` | no | `Asia/Tokyo` | 日付整形用 |
-| `FILENAME_PATTERN_HINT` | no | `YYYY-MM-DD_発行元_書類種別_要点` | AI に渡す命名ヒント |
-| `USER_WEAK_ISSUER_LABELS` | no | `お知らせ,アンケート` | AI の発行元候補が一致したら弱い発行元とみなし、本文の強い組織名へ補正する(カンマ区切り) |
-| `LOG_SPREADSHEET_ID` | no | `1XyZ...` | 未設定なら初回実行時に自動作成 |
-| `LOG_SHEET_NAME` | no | `scan_rename_log` | ログシート名 |
-| `MAX_PROMPT_CHARS` | no | `12000` | AI に渡す OCR テキストの最大文字数 |
-| `MAX_SUBJECT_LENGTH` | no | `40` | ファイル名の要点部分の最大長 |
-| `MAX_ISSUER_LENGTH` | no | `30` | ファイル名・フォルダ名の発行元部分の最大長 |
-| `MAX_DOCUMENT_TYPE_LENGTH` | no | `30` | ファイル名・フォルダ名の書類種別部分の最大長 |
-| `NOTIFICATION_EMAIL` | no | `you@example.com` | `error`/`copy_failed` 時に通知を送る宛先(未設定なら通知なし) |
+| `SCANSNAP_FOLDER_ID` | yes | `1AbCdEf...` | Drive folder ID to watch |
+| `ARCHIVE_ROOT_FOLDER_ID` | required for rename | `1FamilyFolder...` | Drive folder ID of the shared archive destination |
+| `AI_PROVIDER` | no | `gemini` | `gemini` or `openai`. Defaults to `gemini` |
+| `GEMINI_API_KEY` | provider=gemini | `AIza...` | When using Gemini |
+| `OPENAI_API_KEY` | provider=openai | `sk-...` | When using OpenAI |
+| `OPENAI_BASE_URL` | provider=openai | `https://api.openai.com/v1/chat/completions` | OpenAI-compatible endpoint |
+| `AI_MODEL` | no | `gemini-2.5-flash-lite` | Provider-specific default when unset (`gemini`→`gemini-2.5-flash-lite`, `openai`→`gpt-4o-mini`) |
+| `RENAME_MODE` | no | `review` | `review` or `rename` |
+| `MIN_CONFIDENCE` | no | `0.75` | Minimum confidence for auto-confirming during `rename` |
+| `MAX_FILES_PER_RUN` | no | `5` | Maximum number of files processed per run |
+| `FILE_STABLE_MINUTES` | no | `5` | Wait time to avoid files that were just modified |
+| `OCR_LANGUAGE` | no | `ja` | Drive OCR language |
+| `TRIGGER_MINUTES` | no | `15` | One of `1, 5, 10, 15, 30` |
+| `TIMEZONE` | no | `Asia/Tokyo` | For date formatting |
+| `FILENAME_PATTERN_HINT` | no | `YYYY-MM-DD_発行元_書類種別_要点` | Naming hint passed to the AI |
+| `USER_WEAK_ISSUER_LABELS` | no | `お知らせ,アンケート` | If the AI's issuer candidate matches one of these, treat it as a weak issuer and correct it to a strong organization name from the body (comma-separated) |
+| `LOG_SPREADSHEET_ID` | no | `1XyZ...` | Created automatically on first run if unset |
+| `LOG_SHEET_NAME` | no | `scan_rename_log` | Log sheet name |
+| `MAX_PROMPT_CHARS` | no | `12000` | Maximum number of OCR text characters passed to the AI |
+| `MAX_SUBJECT_LENGTH` | no | `40` | Maximum length of the summary part of the filename |
+| `MAX_ISSUER_LENGTH` | no | `30` | Maximum length of the issuer part of the filename / folder name |
+| `MAX_DOCUMENT_TYPE_LENGTH` | no | `30` | Maximum length of the document type part of the filename / folder name |
+| `NOTIFICATION_EMAIL` | no | `you@example.com` | Address to notify on `error`/`copy_failed` (no notification if unset) |
 
 ## Local commands
 
@@ -106,28 +106,28 @@ bun run setup:remote
 
 ## Apps Script functions
 
-- `setupScanRenameProject()`: ログスプレッドシートを準備
-- `runScanRenameJob()`: 未処理 PDF を走査して review / rename を実行
-- `installScanRenameTrigger()`: 定期実行 trigger を再作成
-- `removeScanRenameTriggers()`: 既存 trigger を削除
-- `migrateArchiveFolderStructure()`: 既存のアーカイブフォルダを旧構成（書類種別/発行元）から新構成（発行元(半角英数字へ正規化)/書類種別）へ移行
-- `normalizeArchiveIssuerNames()`: 既存の発行元フォルダ名、アーカイブ済みファイル名、ログの issuer 関連項目を半角英数字へ正規化
-- `correctArchiveIssuerFolders()`: 誤った発行元フォルダを本文や既存ログの強い候補に基づいて補正し、既存のアーカイブパスとファイル名も更新
-- `getScriptPropertiesTemplate()`: 設定キーのひな形を返す
+- `setupScanRenameProject()`: prepares the log spreadsheet
+- `runScanRenameJob()`: scans unprocessed PDFs and runs review / rename
+- `installScanRenameTrigger()`: recreates the scheduled trigger
+- `removeScanRenameTriggers()`: removes existing triggers
+- `migrateArchiveFolderStructure()`: migrates existing archive folders from the old structure (document type / issuer) to the new structure (issuer normalized to alphanumerics / document type)
+- `normalizeArchiveIssuerNames()`: normalizes existing issuer folder names, archived filenames, and issuer-related log fields to alphanumerics
+- `correctArchiveIssuerFolders()`: corrects wrong issuer folders based on the body text or strong candidates in existing logs, and updates existing archive paths and filenames as well
+- `getScriptPropertiesTemplate()`: returns a template of the configuration keys
 
-## 運用
+## Operations
 
-詳細は [docs/runbook.md](docs/runbook.md) を参照。
+See [docs/runbook.md](docs/runbook.md) for details.
 
 ## Notes
 
-- OCR テキストがほぼ取れない場合は `review_needed` で止めます。
-- AI の発行元候補が個人名や汎用ラベルでも、OCR・件名・要約に強い組織名があればその発行元へ補正します。
-- `review` では `ARCHIVE_ROOT_FOLDER_ID` 未設定でも候補パスの確認までは実行できます。
-- `review` で確認したファイルは、`rename` に切り替えた最初の実行で 1 回だけ再処理されます。
-- `rename` ではファイル名がすでに確定していても、未コピーなら共有アーカイブへコピーします。
-- 共有先コピーに失敗したファイルは `copy_failed` で記録され、次回実行で再試行されます。
-- 再処理したいファイルは、ログシートから該当行を消して再実行してください。
-- Gemini API キーは URL クエリではなく `x-goog-api-key` ヘッダーで送信されます(ログやプロキシへの漏えいを防ぐため)。
-- `executionApi.access` は `MYSELF`(オーナーのみ)に設定しています。`clasp run`(`setup:remote`)はオーナー認証で実行できるため `ANYONE` は不要です。デプロイは `setup:remote` が一時的に作成し、不要になったら `clasp deployments` で確認のうえ `clasp undeploy <deploymentId>` で削除してください。`ANYONE` に変更した場合はデプロイ ID を知る任意のアカウントから実行可能になるため公開・共有は避けてください。
-- 大きい PDF や画像中心の PDF が増えたら、OCR / AI 呼び出しだけ Cloud Run へ切り出すのが次の一手です。
+- If almost no OCR text can be extracted, it stops with `review_needed`.
+- Even if the AI's issuer candidate is a personal name or a generic label, it is corrected to that issuer when the OCR text, subject, or summary contains a strong organization name.
+- In `review` mode you can still check the candidate path even when `ARCHIVE_ROOT_FOLDER_ID` is unset.
+- Files checked in `review` are reprocessed once, on the first run after switching to `rename`.
+- In `rename`, even if the filename is already finalized, the file is copied to the shared archive if it has not been copied yet.
+- Files that fail to copy to the shared destination are recorded as `copy_failed` and retried on the next run.
+- To reprocess a file, delete its row from the log sheet and run again.
+- The Gemini API key is sent via the `x-goog-api-key` header rather than a URL query (to prevent leaks into logs or proxies).
+- `executionApi.access` is set to `MYSELF` (owner only). `clasp run` (`setup:remote`) can run with owner authentication, so `ANYONE` is not needed. Deployments are created temporarily by `setup:remote`; when they are no longer needed, check with `clasp deployments` and delete with `clasp undeploy <deploymentId>`. If you change it to `ANYONE`, any account that knows the deployment ID can run it, so avoid making it public or shared.
+- If large or image-heavy PDFs increase, splitting only the OCR / AI calls out to Cloud Run is the next step.
