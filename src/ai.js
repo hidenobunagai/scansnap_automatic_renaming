@@ -1,8 +1,36 @@
+// Closed set so archive folders don't fragment (the log had 78 distinct free-form types).
+const DOCUMENT_TYPES_ = Object.freeze([
+  "学級通信",
+  "学校だより",
+  "お知らせ",
+  "案内",
+  "通知書",
+  "決定通知書",
+  "証明書",
+  "契約書",
+  "請求書",
+  "領収書",
+  "明細書",
+  "申込書",
+  "提出書類",
+  "アンケート",
+  "議事録",
+  "会議資料",
+  "献立表",
+  "予定表",
+  "検査結果",
+  "保証書",
+  "その他",
+]);
+
+// Base64 inflates ~4/3 and Gemini caps inline requests at 20MB.
+const MAX_INLINE_PDF_BYTES_ = 10 * 1024 * 1024;
+
 function requestRenameSuggestion_(extractedText, fileMeta, config) {
   const prompt = buildAiPrompt_(extractedText, fileMeta, config);
   const payload =
     config.aiProvider === "gemini"
-      ? callGeminiForRename_(prompt, config)
+      ? callGeminiForRename_(prompt, config, getPdfInlinePart_(fileMeta))
       : callOpenAiForRename_(prompt, config);
 
   return normalizeAiSuggestion_(payload, fileMeta, config, extractedText);
@@ -11,6 +39,8 @@ function requestRenameSuggestion_(extractedText, fileMeta, config) {
 function buildAiPrompt_(extractedText, fileMeta, config) {
   const promptText = truncateText_(collapseWhitespace_(extractedText), config.maxPromptChars);
 
+  const knownIssuers = config.knownIssuers || [];
+
   return [
     "You rename scanned PDF files for a personal Japanese document archive.",
     "Return JSON only.",
@@ -18,21 +48,55 @@ function buildAiPrompt_(extractedText, fileMeta, config) {
     "Rules:",
     "- Use concise Japanese labels.",
     "- Do not include the .pdf extension.",
-    "- issuer should be the organization, company, or sender if identifiable.",
-    "- For school communications (学級通信, おたより, etc.), use the school name (学校名) as issuer, never a class name (クラス名 like いけいけ1組).",
-    "- documentType should be a short category like invoice, statement, receipt, or tax notice in Japanese.",
-    "- subject should be a short detail that helps distinguish this file from similar files.",
-    "- confidence must be a number from 0 to 1.",
+    "- issuer: the official full name of the sending organization as printed (letterhead, seal, 差出人, footer).",
+    "  Never a class name (いけいけ1組, 2年1組), a teacher or person name, or a generic word alone (学校, 幼稚園, 小学校, PTA, 自転車店).",
+    "  For school communications use the full school name (e.g. 三郷市立桜小学校, not 桜小学校).",
+    knownIssuers.length
+      ? `- Known issuers (if the sender is one of these organizations, return the string exactly as listed): ${knownIssuers.join(", ")}`
+      : "",
+    `- documentType: pick exactly one of: ${DOCUMENT_TYPES_.join(", ")}.`,
+    "  学級通信 = class/grade newsletters; 学校だより = school-wide, library or health newsletters; 検査結果 = health check or fitness test results.",
+    "- documentDate: the issue date printed on the document (発行日/作成日/日付 near the top). Convert Japanese eras (令和7年 = 2025).",
+    "  If no issue date is printed, use the start of the period the document covers (a weekly schedule 7/7-7/11 -> 7/7, a 10月号 -> the 1st),",
+    "  but only when the year is printed too (令和7年度 counts: April-December is 2025, January-March is 2026). Never guess the year; return null instead.",
+    "- subject: 5-25 characters that distinguish this file from similar ones (event, period, target person, item).",
+    "  Do not repeat the issuer or documentType in subject. For numbered newsletters include the issue number (e.g. 第14号).",
+    "- confidence: 0 to 1. Lower it when the issuer, date or type had to be guessed or the text is garbled.",
     "- If a field is unknown, return an empty string or null.",
     `- Filename style hint: ${config.filenamePatternHint}`,
     `- Original filename: ${fileMeta.name}`,
-    `- Drive created date fallback: ${formatDate_(fileMeta.createdAt, config.timezone)}`,
-    "Extracted text:",
+    "OCR text (may contain recognition errors; prefer the attached PDF when they disagree):",
     promptText,
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
-function callGeminiForRename_(prompt, config) {
+function getPdfInlinePart_(fileMeta) {
+  try {
+    const blob = DriveApp.getFileById(fileMeta.id).getBlob();
+    const bytes = blob.getBytes();
+
+    if (bytes.length > MAX_INLINE_PDF_BYTES_) {
+      return null;
+    }
+
+    return {
+      inlineData: {
+        mimeType: "application/pdf",
+        data: Utilities.base64Encode(bytes),
+      },
+    };
+  } catch (error) {
+    logError_("Failed to attach PDF to AI request; falling back to OCR text only.", {
+      fileId: fileMeta.id,
+      error: getErrorMessage_(error),
+    });
+    return null;
+  }
+}
+
+function callGeminiForRename_(prompt, config, pdfPart) {
   const response = fetchJson_(
     `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.aiModel)}:generateContent`,
     {
@@ -44,11 +108,7 @@ function callGeminiForRename_(prompt, config) {
       payload: JSON.stringify({
         contents: [
           {
-            parts: [
-              {
-                text: prompt,
-              },
-            ],
+            parts: (pdfPart ? [pdfPart] : []).concat([{ text: prompt }]),
           },
         ],
         generationConfig: {
@@ -59,7 +119,7 @@ function callGeminiForRename_(prompt, config) {
             properties: {
               documentDate: { type: "string" },
               issuer: { type: "string" },
-              documentType: { type: "string" },
+              documentType: { type: "string", enum: DOCUMENT_TYPES_.slice() },
               subject: { type: "string" },
               summary: { type: "string" },
               confidence: { type: "number" },
@@ -259,6 +319,52 @@ function endsAtMarkerBoundary_(value) {
   return false;
 }
 
+function normalizeDocumentType_(value) {
+  const text = collapseWhitespace_(value);
+
+  return DOCUMENT_TYPES_.indexOf(text) !== -1 ? text : "";
+}
+
+function matchKnownIssuer_(issuer, knownIssuers) {
+  const norm = normalizeIssuerText_(issuer);
+
+  if (!norm) {
+    return issuer;
+  }
+
+  const known = (knownIssuers || []).map(normalizeIssuerText_);
+
+  if (known.indexOf(norm) !== -1) {
+    return norm;
+  }
+
+  // 桜小学校 -> 三郷市立桜小学校. Suffix only: a prefix match would also turn
+  // 桜小学校 into 桜小学校児童クラブ, which is a different organization.
+  const matches = known.filter(function (name) {
+    return name.length > norm.length && name.slice(-norm.length) === norm;
+  });
+
+  return matches.length === 1 ? matches[0] : issuer;
+}
+
+function isIssuerGrounded_(issuer, extractedText, knownIssuers) {
+  const key = function (value) {
+    return normalizeIssuerText_(value).replace(/\s+/g, "");
+  };
+  const issuerKey = key(issuer);
+
+  if (!issuerKey) {
+    return false;
+  }
+
+  return (
+    key(extractedText).indexOf(issuerKey) !== -1 ||
+    (knownIssuers || []).some(function (name) {
+      return key(name) === issuerKey;
+    })
+  );
+}
+
 function normalizeAiSuggestion_(payload, fileMeta, config, extractedText) {
   const fallbackDate = formatDate_(fileMeta.createdAt, config.timezone);
   const fallbackSubject = truncateFileSegment_(
@@ -269,16 +375,42 @@ function normalizeAiSuggestion_(payload, fileMeta, config, extractedText) {
     payload.subject || payload.summary || fallbackSubject,
     config.maxSubjectLength,
   );
+  const documentDate = normalizeIsoDate_(payload.documentDate);
+  const documentType = normalizeDocumentType_(payload.documentType);
+  const issuer = matchKnownIssuer_(
+    correctIssuerSuggestion_(payload, extractedText, config),
+    config.knownIssuers,
+  );
+  const reviewReasons = [];
+
+  if (!documentDate) {
+    reviewReasons.push("No issue date found; used Drive created date.");
+  }
+
+  if (!documentType) {
+    reviewReasons.push(
+      `documentType "${collapseWhitespace_(payload.documentType)}" is not in the allowed list.`,
+    );
+  }
+
+  if (isWeakIssuerLabel_(issuer, config)) {
+    reviewReasons.push(`Issuer "${issuer}" is a generic label.`);
+  } else if (!isIssuerGrounded_(issuer, extractedText, config.knownIssuers)) {
+    reviewReasons.push(`Issuer "${issuer}" was not found in the OCR text or known issuers.`);
+  }
+
+  // Self-reported confidence is ~1 for almost everything, so it can't gate renames on its own.
+  const confidence = reviewReasons.length
+    ? Math.min(normalizeConfidence_(payload.confidence), Math.max(0, config.minConfidence - 0.01))
+    : normalizeConfidence_(payload.confidence);
 
   return {
-    documentDate: normalizeIsoDate_(payload.documentDate) || fallbackDate,
-    issuer: truncateFileSegment_(
-      correctIssuerSuggestion_(payload, extractedText, config),
-      config.maxIssuerLength,
-    ),
-    documentType: truncateFileSegment_(payload.documentType, config.maxDocumentTypeLength),
+    documentDate: documentDate || fallbackDate,
+    issuer: truncateFileSegment_(issuer, config.maxIssuerLength),
+    documentType: truncateFileSegment_(documentType, config.maxDocumentTypeLength),
     subject: subject || fallbackSubject || "scan",
     summary: truncateText_(collapseWhitespace_(payload.summary || payload.subject || ""), 120),
-    confidence: normalizeConfidence_(payload.confidence),
+    confidence: confidence,
+    reviewReasons: reviewReasons,
   };
 }

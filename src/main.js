@@ -47,6 +47,7 @@ function runScanRenameJob() {
   validateRunConfig_(config);
   const logState = getLogState_(config);
   const candidates = listPendingPdfFiles_(config, logState.fileStateMap);
+  config.knownIssuers = candidates.length ? listKnownIssuers_(config) : [];
   const counts = {
     renamed: 0,
     review_needed: 0,
@@ -188,6 +189,27 @@ function getScriptPropertiesTemplate() {
   ].join("\n");
 }
 
+// Existing archive issuer folders double as the canonical issuer vocabulary,
+// so new files land in the same folders instead of near-duplicates.
+function listKnownIssuers_(config) {
+  if (!config.archiveRootFolderId) {
+    return [];
+  }
+
+  try {
+    return listDirectChildFolders_(config.archiveRootFolderId)
+      .map(function (folder) {
+        return collapseWhitespace_(folder.title);
+      })
+      .filter(function (title) {
+        return title && title !== ARCHIVE_DEFAULTS_.issuer && !isWeakIssuerLabel_(title, config);
+      });
+  } catch (error) {
+    logError_("Failed to list known issuers.", { error: getErrorMessage_(error) });
+    return [];
+  }
+}
+
 function validateRunConfig_(config) {
   if (config.renameMode === "rename" && !config.archiveRootFolderId) {
     throw new Error("ARCHIVE_ROOT_FOLDER_ID is required when RENAME_MODE=rename.");
@@ -301,14 +323,19 @@ function processSinglePdfFile_(fileMeta, config, logSheet, fileState) {
       archiveRelativePath: archiveRelativePath,
       archiveFinalName: archiveFinalName,
       archiveFileId: archiveFileId,
-      errorMessage: buildProcessingErrorMessage_(
-        status,
-        config,
-        suggestedName,
-        fileMeta.name,
-        suggestion.confidence,
-        shouldCopyToArchive,
-      ),
+      errorMessage: [
+        buildProcessingErrorMessage_(
+          status,
+          config,
+          suggestedName,
+          fileMeta.name,
+          suggestion.confidence,
+          shouldCopyToArchive,
+        ),
+      ]
+        .concat(status === "review_needed" ? suggestion.reviewReasons : [])
+        .filter(Boolean)
+        .join(" "),
     });
   } catch (error) {
     const message = getErrorMessage_(error);

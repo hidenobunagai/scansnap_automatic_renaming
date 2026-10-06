@@ -74,7 +74,7 @@ As a prerequisite, you need the `GCP project` link for `clasp run` and to log in
 | `GEMINI_API_KEY` | provider=gemini | `AIza...` | When using Gemini |
 | `OPENAI_API_KEY` | provider=openai | `sk-...` | When using OpenAI |
 | `OPENAI_BASE_URL` | provider=openai | `https://api.openai.com/v1/chat/completions` | OpenAI-compatible endpoint |
-| `AI_MODEL` | no | `gemini-2.5-flash-lite` | Provider-specific default when unset (`gemini`→`gemini-2.5-flash-lite`, `openai`→`gpt-4o-mini`) |
+| `AI_MODEL` | no | `gemini-flash-latest` | Provider-specific default when unset (`gemini`→`gemini-flash-latest`, `openai`→`gpt-4o-mini`) |
 | `RENAME_MODE` | no | `review` | `review` or `rename` |
 | `MIN_CONFIDENCE` | no | `0.75` | Minimum confidence for auto-confirming during `rename` |
 | `MAX_FILES_PER_RUN` | no | `5` | Maximum number of files processed per run |

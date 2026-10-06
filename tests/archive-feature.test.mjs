@@ -189,7 +189,7 @@ describe("buildArchiveRelativePath_", () => {
       {
         documentDate: "2026-04-12",
         issuer: "学級だより",
-        documentType: "おたより",
+        documentType: "学校だより",
         subject: "4月号",
         summary: "桜小学校 4月号",
         confidence: 0.7,
@@ -227,7 +227,7 @@ describe("buildArchiveRelativePath_", () => {
         maxIssuerLength: 50,
         maxDocumentTypeLength: 30,
       }),
-    ).toBe("桜小学校/おたより");
+    ).toBe("桜小学校/学校だより");
   });
 });
 
