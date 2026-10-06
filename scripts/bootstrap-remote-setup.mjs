@@ -85,6 +85,7 @@ function buildSetupRequest() {
       MAX_ISSUER_LENGTH: getOptionalEnv("MAX_ISSUER_LENGTH") || "30",
       MAX_DOCUMENT_TYPE_LENGTH: getOptionalEnv("MAX_DOCUMENT_TYPE_LENGTH") || "30",
       NOTIFICATION_EMAIL: getOptionalEnv("NOTIFICATION_EMAIL"),
+      KNOWN_ISSUERS: getOptionalEnv("KNOWN_ISSUERS"),
     },
     installTrigger: (getOptionalEnv("INSTALL_TRIGGER") || "true").toLowerCase() !== "false",
   };

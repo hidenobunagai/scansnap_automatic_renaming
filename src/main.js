@@ -15,6 +15,7 @@ const WRITABLE_SCRIPT_PROPERTIES_ = Object.freeze([
   "TIMEZONE",
   "FILENAME_PATTERN_HINT",
   "USER_WEAK_ISSUER_LABELS",
+  "KNOWN_ISSUERS",
   "LOG_SPREADSHEET_ID",
   "LOG_SHEET_NAME",
   "MAX_PROMPT_CHARS",
@@ -178,6 +179,7 @@ function getScriptPropertiesTemplate() {
     `TIMEZONE=${DEFAULTS_.timezone}`,
     `FILENAME_PATTERN_HINT=${DEFAULTS_.filenamePatternHint}`,
     "USER_WEAK_ISSUER_LABELS=",
+    "KNOWN_ISSUERS=",
     "LOG_SPREADSHEET_ID=",
     `LOG_SHEET_NAME=${DEFAULTS_.logSheetName}`,
     `MAX_PROMPT_CHARS=${DEFAULTS_.maxPromptChars}`,
@@ -301,14 +303,19 @@ function processSinglePdfFile_(fileMeta, config, logSheet, fileState) {
       archiveRelativePath: archiveRelativePath,
       archiveFinalName: archiveFinalName,
       archiveFileId: archiveFileId,
-      errorMessage: buildProcessingErrorMessage_(
-        status,
-        config,
-        suggestedName,
-        fileMeta.name,
-        suggestion.confidence,
-        shouldCopyToArchive,
-      ),
+      errorMessage: [
+        buildProcessingErrorMessage_(
+          status,
+          config,
+          suggestedName,
+          fileMeta.name,
+          suggestion.confidence,
+          shouldCopyToArchive,
+        ),
+      ]
+        .concat(status === "review_needed" ? suggestion.reviewReasons : [])
+        .filter(Boolean)
+        .join(" "),
     });
   } catch (error) {
     const message = getErrorMessage_(error);

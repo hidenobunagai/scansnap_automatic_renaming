@@ -7,7 +7,7 @@ const DEFAULTS_ = Object.freeze({
   ocrLanguage: "ja",
   timezone: "Asia/Tokyo",
   logSheetName: "scan_rename_log",
-  defaultGeminiModel: "gemini-2.5-flash-lite",
+  defaultGeminiModel: "gemini-flash-latest",
   defaultOpenAiModel: "gpt-4o-mini",
   filenamePatternHint: "YYYY-MM-DD_発行元_書類種別_要点",
   maxPromptChars: 12000,
@@ -92,6 +92,10 @@ function getConfig_() {
       parseNumberProperty_(properties, "TRIGGER_MINUTES", DEFAULTS_.triggerMinutes),
     ),
     userWeakIssuerLabels: getStringProperty_(properties, "USER_WEAK_ISSUER_LABELS", ""),
+    knownIssuers: getStringProperty_(properties, "KNOWN_ISSUERS", "")
+      .split(",")
+      .map(collapseWhitespace_)
+      .filter(Boolean),
     geminiApiKey:
       aiProvider === "gemini" ? requireStringProperty_(properties, "GEMINI_API_KEY") : "",
     openAiApiKey:
