@@ -83,6 +83,7 @@ As a prerequisite, you need the `GCP project` link for `clasp run` and to log in
 | `TRIGGER_MINUTES` | no | `15` | One of `1, 5, 10, 15, 30` |
 | `TIMEZONE` | no | `Asia/Tokyo` | For date formatting |
 | `FILENAME_PATTERN_HINT` | no | `YYYY-MM-DD_発行元_書類種別_要点` | Naming hint passed to the AI |
+| `KNOWN_ISSUERS` | no | `三郷市立桜小学校,埼玉県民共済生活協同組合` | Canonical issuer names (comma-separated). The AI is told to return these exact strings, and a short name is mapped to the unique entry ending with it (`桜小学校` → `三郷市立桜小学校`). Keeps archive folders from splitting |
 | `USER_WEAK_ISSUER_LABELS` | no | `お知らせ,アンケート` | If the AI's issuer candidate matches one of these, treat it as a weak issuer and correct it to a strong organization name from the body (comma-separated) |
 | `LOG_SPREADSHEET_ID` | no | `1XyZ...` | Created automatically on first run if unset |
 | `LOG_SHEET_NAME` | no | `scan_rename_log` | Log sheet name |

@@ -15,6 +15,7 @@ const WRITABLE_SCRIPT_PROPERTIES_ = Object.freeze([
   "TIMEZONE",
   "FILENAME_PATTERN_HINT",
   "USER_WEAK_ISSUER_LABELS",
+  "KNOWN_ISSUERS",
   "LOG_SPREADSHEET_ID",
   "LOG_SHEET_NAME",
   "MAX_PROMPT_CHARS",
@@ -47,7 +48,6 @@ function runScanRenameJob() {
   validateRunConfig_(config);
   const logState = getLogState_(config);
   const candidates = listPendingPdfFiles_(config, logState.fileStateMap);
-  config.knownIssuers = candidates.length ? listKnownIssuers_(config) : [];
   const counts = {
     renamed: 0,
     review_needed: 0,
@@ -179,6 +179,7 @@ function getScriptPropertiesTemplate() {
     `TIMEZONE=${DEFAULTS_.timezone}`,
     `FILENAME_PATTERN_HINT=${DEFAULTS_.filenamePatternHint}`,
     "USER_WEAK_ISSUER_LABELS=",
+    "KNOWN_ISSUERS=",
     "LOG_SPREADSHEET_ID=",
     `LOG_SHEET_NAME=${DEFAULTS_.logSheetName}`,
     `MAX_PROMPT_CHARS=${DEFAULTS_.maxPromptChars}`,
@@ -187,27 +188,6 @@ function getScriptPropertiesTemplate() {
     `MAX_DOCUMENT_TYPE_LENGTH=${DEFAULTS_.maxDocumentTypeLength}`,
     "NOTIFICATION_EMAIL=",
   ].join("\n");
-}
-
-// Existing archive issuer folders double as the canonical issuer vocabulary,
-// so new files land in the same folders instead of near-duplicates.
-function listKnownIssuers_(config) {
-  if (!config.archiveRootFolderId) {
-    return [];
-  }
-
-  try {
-    return listDirectChildFolders_(config.archiveRootFolderId)
-      .map(function (folder) {
-        return collapseWhitespace_(folder.title);
-      })
-      .filter(function (title) {
-        return title && title !== ARCHIVE_DEFAULTS_.issuer && !isWeakIssuerLabel_(title, config);
-      });
-  } catch (error) {
-    logError_("Failed to list known issuers.", { error: getErrorMessage_(error) });
-    return [];
-  }
 }
 
 function validateRunConfig_(config) {
