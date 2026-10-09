@@ -5,7 +5,10 @@
     "title": "ScanSnap Automatic Renaming Architecture",
     "output": "docs/index.html",
     "quality_profile": "showcase",
-    "viewBox": [920, 410],
+    "viewBox": [
+      920,
+      450
+    ],
     "repository": {
       "url": "https://github.com/hidenobunagai/scansnap_automatic_renaming",
       "revision": "49131ec029e670bc6a6cc113fe0483b508beb251"
@@ -14,19 +17,33 @@
       {
         "id": "scan-and-ingest",
         "label": "1. Scan & Ingest",
-        "focus": ["scansnap", "inbox-folder", "gas-trigger", "job-runner"],
+        "focus": [
+          "scansnap",
+          "inbox-folder",
+          "gas-trigger",
+          "job-runner"
+        ],
         "note": "ScanSnap uploads PDFs to Google Drive, and the scheduled trigger invokes Apps Script."
       },
       {
         "id": "ocr-and-ai",
         "label": "2. OCR & AI Analysis",
-        "focus": ["job-runner", "drive-ocr", "ai-engine"],
+        "focus": [
+          "job-runner",
+          "drive-ocr",
+          "ai-engine"
+        ],
         "note": "Drive OCR extracts document text, and Gemini/OpenAI infers naming metadata."
       },
       {
         "id": "archive-and-log",
         "label": "3. Archive & Audit",
-        "focus": ["job-runner", "archive-folder", "log-sheet", "mail-notifier"],
+        "focus": [
+          "job-runner",
+          "archive-folder",
+          "log-sheet",
+          "mail-notifier"
+        ],
         "note": "Files are archived into structured folders, logged to Spreadsheet, and failures alert admin."
       }
     ]
@@ -37,8 +54,14 @@
       "type": "external",
       "label": "ScanSnap",
       "sublabel": "Hardware Scanner",
-      "pos": [40, 180],
-      "size": [130, 56],
+      "pos": [
+        40,
+        190
+      ],
+      "size": [
+        130,
+        64
+      ],
       "tag": "Wi-Fi Cloud Scan"
     },
     {
@@ -46,11 +69,21 @@
       "type": "database",
       "label": "Inbox Folder",
       "sublabel": "Google Drive",
-      "pos": [260, 180],
-      "size": [140, 56],
+      "pos": [
+        260,
+        190
+      ],
+      "size": [
+        140,
+        64
+      ],
       "tag": "SCANSNAP_FOLDER_ID",
       "sources": [
-        { "path": "src/drive.js", "line": 20, "label": "listPendingPdfFiles_" }
+        {
+          "path": "src/drive.js",
+          "line": 20,
+          "label": "listPendingPdfFiles_"
+        }
       ]
     },
     {
@@ -58,11 +91,21 @@
       "type": "cloud",
       "label": "Time Trigger",
       "sublabel": "Apps Script Cron",
-      "pos": [260, 40],
-      "size": [140, 56],
+      "pos": [
+        260,
+        40
+      ],
+      "size": [
+        140,
+        64
+      ],
       "tag": "Every 15 min",
       "sources": [
-        { "path": "src/main.js", "line": 85, "label": "installScanRenameTrigger" }
+        {
+          "path": "src/main.js",
+          "line": 85,
+          "label": "installScanRenameTrigger"
+        }
       ]
     },
     {
@@ -70,12 +113,26 @@
       "type": "backend",
       "label": "Job Runner",
       "sublabel": "Apps Script Engine",
-      "pos": [490, 180],
-      "size": [150, 56],
+      "pos": [
+        490,
+        190
+      ],
+      "size": [
+        150,
+        64
+      ],
       "tag": "runScanRenameJob",
       "sources": [
-        { "path": "src/main.js", "line": 45, "label": "runScanRenameJob" },
-        { "path": "src/main.js", "line": 197, "label": "processSinglePdfFile_" }
+        {
+          "path": "src/main.js",
+          "line": 45,
+          "label": "runScanRenameJob"
+        },
+        {
+          "path": "src/main.js",
+          "line": 197,
+          "label": "processSinglePdfFile_"
+        }
       ]
     },
     {
@@ -83,11 +140,21 @@
       "type": "cloud",
       "label": "Drive OCR",
       "sublabel": "PDF to Text",
-      "pos": [490, 40],
-      "size": [150, 56],
+      "pos": [
+        490,
+        40
+      ],
+      "size": [
+        150,
+        64
+      ],
       "tag": "OCR_LANGUAGE=ja",
       "sources": [
-        { "path": "src/ocr.js", "line": 1, "label": "extractTextFromPdf_" }
+        {
+          "path": "src/ocr.js",
+          "line": 1,
+          "label": "extractTextFromPdf_"
+        }
       ]
     },
     {
@@ -96,11 +163,21 @@
       "label": "Gemini / OpenAI",
       "sublabel": "Structured Extraction",
       "brand": "google-gemini",
-      "pos": [730, 40],
-      "size": [150, 56],
+      "pos": [
+        730,
+        40
+      ],
+      "size": [
+        150,
+        64
+      ],
       "tag": "JSON Schema",
       "sources": [
-        { "path": "src/ai.js", "line": 1, "label": "requestRenameSuggestion_" }
+        {
+          "path": "src/ai.js",
+          "line": 1,
+          "label": "requestRenameSuggestion_"
+        }
       ]
     },
     {
@@ -108,11 +185,21 @@
       "type": "database",
       "label": "Archive Shared Drive",
       "sublabel": "Issuer / DocType hierarchy",
-      "pos": [730, 180],
-      "size": [150, 56],
+      "pos": [
+        730,
+        190
+      ],
+      "size": [
+        150,
+        64
+      ],
       "tag": "ARCHIVE_ROOT_FOLDER_ID",
       "sources": [
-        { "path": "src/archive.js", "line": 1, "label": "copyFileToArchiveStructure_" }
+        {
+          "path": "src/archive.js",
+          "line": 1,
+          "label": "copyFileToArchiveStructure_"
+        }
       ]
     },
     {
@@ -120,11 +207,21 @@
       "type": "database",
       "label": "Audit Log Sheet",
       "sublabel": "Google Spreadsheet",
-      "pos": [490, 310],
-      "size": [150, 56],
+      "pos": [
+        490,
+        340
+      ],
+      "size": [
+        150,
+        64
+      ],
       "tag": "scan_rename_log",
       "sources": [
-        { "path": "src/log-sheet.js", "line": 1, "label": "logProcessingResult_" }
+        {
+          "path": "src/log-sheet.js",
+          "line": 1,
+          "label": "logProcessingResult_"
+        }
       ]
     },
     {
@@ -132,11 +229,21 @@
       "type": "external",
       "label": "Failure Alert",
       "sublabel": "Gmail Notification",
-      "pos": [730, 310],
-      "size": [150, 56],
+      "pos": [
+        730,
+        340
+      ],
+      "size": [
+        150,
+        64
+      ],
       "tag": "NOTIFICATION_EMAIL",
       "sources": [
-        { "path": "src/main.js", "line": 80, "label": "maybeSendFailureNotification_" }
+        {
+          "path": "src/main.js",
+          "line": 80,
+          "label": "maybeSendFailureNotification_"
+        }
       ]
     }
   ],
@@ -144,12 +251,21 @@
     {
       "kind": "region",
       "label": "Google Workspace & Apps Script Platform",
-      "wraps": ["inbox-folder", "gas-trigger", "job-runner", "drive-ocr", "archive-folder", "log-sheet"]
+      "wraps": [
+        "inbox-folder",
+        "gas-trigger",
+        "job-runner",
+        "drive-ocr",
+        "archive-folder",
+        "log-sheet"
+      ]
     },
     {
       "kind": "security-group",
       "label": "AI API Boundary",
-      "wraps": ["ai-engine"]
+      "wraps": [
+        "ai-engine"
+      ]
     }
   ],
   "connections": [
@@ -205,7 +321,7 @@
       "variant": "emphasis",
       "fromSide": "bottom",
       "toSide": "top",
-      "labelDy": 30
+      "labelDy": 52
     },
     {
       "id": "conn-log-append",
