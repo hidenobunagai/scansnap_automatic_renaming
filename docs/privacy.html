@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy — ScanSnap Automatic Renaming</title>
+<meta name="description" content="How ScanSnap Automatic Renaming accesses, uses, stores, and shares Google user data.">
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans JP", sans-serif;
+    line-height: 1.7;
+    color: #1a1a1a;
+    background: #fdfdfd;
+  }
+  main { max-width: 44rem; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+  .eyebrow {
+    margin: 0 0 0.4rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #5a5a5a;
+  }
+  h1 { margin: 0 0 0.4rem; font-size: 1.85rem; line-height: 1.25; }
+  h2 { margin: 2.1rem 0 0.6rem; font-size: 1.15rem; }
+  h3 { margin: 1.5rem 0 0.4rem; font-size: 1rem; }
+  p, li { margin: 0.6rem 0; }
+  ul, ol { padding-left: 1.35rem; }
+  a { color: #0b57d0; text-underline-offset: 2px; }
+  a:focus-visible { outline: 3px solid #0b57d0; outline-offset: 2px; border-radius: 2px; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.9em;
+    background: #eeeeee;
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+  }
+  .meta { margin: 0; font-size: 0.92rem; color: #5a5a5a; }
+  .callout {
+    margin: 1.5rem 0;
+    padding: 0.9rem 1.1rem;
+    border-left: 4px solid #0b57d0;
+    background: #eef3fc;
+  }
+  .callout p { margin: 0; }
+  footer {
+    margin-top: 3rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid #dcdcdc;
+    font-size: 0.92rem;
+    color: #5a5a5a;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { color: #e8e8e8; background: #141414; }
+    .eyebrow, .meta, footer { color: #a8a8a8; }
+    a { color: #8ab4f8; }
+    a:focus-visible { outline-color: #8ab4f8; }
+    code { background: #2a2a2a; }
+    .callout { background: #1c2740; border-left-color: #8ab4f8; }
+    footer { border-top-color: #333333; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">ScanSnap Automatic Renaming</p>
+    <h1>Privacy Policy</h1>
+    <p class="meta">Effective date: 18 October 2026 · Last updated: 18 October 2026</p>
+  </header>
+
+  <h2>1. What this app is</h2>
+  <p>
+    ScanSnap Automatic Renaming is a private, single-user Google Apps Script tool. It watches one
+    Google Drive folder for scanned PDFs, reads their contents with OCR, asks an AI model to
+    suggest a descriptive filename, renames and archives the files, and writes an entry to a
+    Google Sheets log.
+  </p>
+  <p>
+    The app is operated by its owner, Hidenobu Nagai, for his own documents. It has no other users
+    and no public interface. It is not submitted for Google OAuth verification, because Google
+    exempts personal-use apps with fewer than 100 users.
+  </p>
+
+  <h2>2. Google user data the app accesses</h2>
+  <p>
+    The app acts only on the Google Account that authorized it. It requests these Google OAuth
+    scopes and uses them as follows.
+  </p>
+  <ul>
+    <li>
+      <code>drive</code> — read PDFs in the configured ScanSnap folder, rename them, and copy them
+      into the archive folder. The app also creates and deletes a short-lived temporary Google Doc
+      while running OCR.
+    </li>
+    <li>
+      <code>documents</code> — read the text of that temporary OCR document, which exists only for
+      the duration of a single run.
+    </li>
+    <li>
+      <code>spreadsheets</code> — create and append to the log spreadsheet that records each
+      processed file, its status, and the reason for the chosen name.
+    </li>
+    <li>
+      <code>script.external_request</code> — send an HTTPS request to the Google Gemini API so the
+      model can suggest a filename.
+    </li>
+    <li>
+      <code>script.scriptapp</code> — create the time-based trigger that runs the job on a schedule.
+    </li>
+    <li>
+      <code>script.send_mail</code> — send a failure notification email to the owner, and only if
+      the owner has configured a notification address.
+    </li>
+  </ul>
+  <p>
+    The app does not access Gmail message bodies, Calendar, Contacts, or any Google data outside
+    the scopes listed above. It does not read the Drive files of anyone other than the authorizing
+    account.
+  </p>
+
+  <h2>3. How the data is used</h2>
+  <p>The only purpose of the data is to produce a descriptive filename for the owner’s own scans.</p>
+  <ol>
+    <li>The PDF found in the ScanSnap folder is sent to Google Drive OCR.</li>
+    <li>The extracted text is passed to the Google Gemini API together with a prompt describing the
+      desired filename format. This is the only point at which document content leaves the Google
+      Account. Because the Gemini API is a Google service, Google’s own API terms govern how Google
+      processes that request.</li>
+    <li>The model’s suggestion is validated, then used to rename the file and to file a copy in the
+      archive folder.</li>
+    <li>A row describing the outcome is appended to the log spreadsheet, so the owner can review
+      what happened and correct errors.</li>
+  </ol>
+  <p>
+    The app does not use the data for advertising, profiling, or any purpose unrelated to renaming
+    the owner’s scans.
+  </p>
+
+  <h2>4. Storage and retention</h2>
+  <ul>
+    <li>
+      <strong>The app has no server and no database of its own.</strong> The developer does not
+      receive, copy, or host any user data.
+    </li>
+    <li>
+      All artifacts — the original PDFs, the renamed files, the archive copies, and the log
+      spreadsheet — stay inside the owner’s own Google Account and are governed by Google Drive and
+      Google Sheets retention.
+    </li>
+    <li>
+      The temporary OCR document is deleted by the app at the end of each run, including on failure.
+    </li>
+    <li>
+      The API key used for the AI request is stored as an Apps Script script property inside the
+      owner’s own Apps Script project. It is never transmitted anywhere except to the AI provider
+      as part of the authorized request.
+    </li>
+    <li>
+      Data is kept until the owner deletes the files or the log. The owner can delete any of it at
+      any time without involving the developer.
+    </li>
+  </ul>
+
+  <h2>5. Sharing and disclosure</h2>
+  <ul>
+    <li>The app does not sell, rent, or trade Google user data.</li>
+    <li>The app does not transfer Google user data to any third party.</li>
+    <li>
+      Document content is transmitted to the Google Gemini API solely to generate a filename, as
+      described in section 3. No other external service receives it.
+    </li>
+    <li>
+      The app does not let humans read the data, except for the owner reading his own files and log.
+    </li>
+    <li>
+      No data is used to determine creditworthiness or for lending purposes, and no data is used for
+      advertising or re-targeting.
+    </li>
+  </ul>
+
+  <div class="callout">
+    <p>
+      <strong>Limited Use statement.</strong> The app’s use and transfer of information received
+      from Google APIs adheres to the
+      <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>,
+      including the Limited Use requirements.
+    </p>
+  </div>
+
+  <h2>6. In-product privacy notice</h2>
+  <p>
+    The script runs unattended and has no end-user interface, so there is no in-app screen on which
+    to display a notice. The outputs a person may see are the log spreadsheet, the renamed files,
+    and — only if a notification address is configured — a failure email to the owner. This page is
+    the app’s privacy notice and is linked from the app’s home page and from the OAuth consent
+    screen.
+  </p>
+
+  <h2>7. Security</h2>
+  <ul>
+    <li>The script runs under the owner’s own Google Account, with the authorizations the owner granted.</li>
+    <li>Access tokens and API keys are kept in Google-managed storage (Apps Script properties), not in public files.</li>
+    <li>All network requests are made over HTTPS.</li>
+    <li>No credentials are embedded in this website or in the public source repository.</li>
+  </ul>
+
+  <h2>8. Revoking access and deleting data</h2>
+  <ul>
+    <li>
+      Revoke the app’s access at any time at
+      <a href="https://myaccount.google.com/permissions">myaccount.google.com/permissions</a>.
+      The script stops working immediately afterwards.
+    </li>
+    <li>Delete the renamed files, the archive copies, and the log spreadsheet directly in Google Drive and Google Sheets.</li>
+    <li>Delete the Apps Script project to remove the stored API key and the trigger.</li>
+    <li>
+      Because there is no developer-side copy, deletion in the owner’s account is complete and
+      requires no request to the developer.
+    </li>
+  </ul>
+
+  <h2>9. Children</h2>
+  <p>The app is not directed at children and is not made available to anyone other than its owner.</p>
+
+  <h2>10. Changes to this policy</h2>
+  <p>
+    If the app’s data handling changes, this page is updated here, and the “Last updated” date
+    above changes accordingly.
+  </p>
+
+  <h2>11. Contact</h2>
+  <p>
+    Questions about this policy: <a href="mailto:hidenobu.nagai.jp@gmail.com">hidenobu.nagai.jp@gmail.com</a>.
+  </p>
+
+  <footer>
+    <p>
+      <a href="home.html">Home</a> ·
+      <a href="terms.html">Terms of Service</a> ·
+      <a href="https://github.com/hidenobunagai/scansnap_automatic_renaming">Source code</a>
+    </p>
+  </footer>
+</main>
+</body>
+</html>
