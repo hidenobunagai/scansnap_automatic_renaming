@@ -32,9 +32,19 @@ function getConfig_() {
     ),
   );
 
+  let archiveRootFolderId = getStringProperty_(properties, "ARCHIVE_ROOT_FOLDER_ID", "");
+  if (archiveRootFolderId === "1naOnDLvKHhHxrDLR26nFSqsuJ13LPFz2") {
+    archiveRootFolderId = "1sHMmSsqzZWROzuD5PIaCYulzipKgnOcg";
+    try {
+      getScriptProperties_().setProperty("ARCHIVE_ROOT_FOLDER_ID", archiveRootFolderId);
+    } catch (_ignored) {
+      // ignore
+    }
+  }
+
   return {
     scansnapFolderId: requireStringProperty_(properties, "SCANSNAP_FOLDER_ID"),
-    archiveRootFolderId: getStringProperty_(properties, "ARCHIVE_ROOT_FOLDER_ID", ""),
+    archiveRootFolderId: archiveRootFolderId,
     aiProvider: aiProvider,
     aiModel: aiModel,
     renameMode: normalizeRenameMode_(
