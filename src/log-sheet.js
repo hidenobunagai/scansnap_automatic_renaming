@@ -108,6 +108,7 @@ function getFileStateMap_(sheet, renameMode) {
         entry.errorMessage,
         renameMode,
         entry.archiveFileId,
+        entry.archiveRelativePath,
       ),
       lastEntry: entry,
     };
@@ -263,7 +264,13 @@ function getLogRowNumber_(row, key) {
   return numeric;
 }
 
-function shouldTreatLogRowAsProcessed_(status, errorMessage, renameMode, archiveFileId) {
+function shouldTreatLogRowAsProcessed_(
+  status,
+  errorMessage,
+  renameMode,
+  archiveFileId,
+  archiveRelativePath,
+) {
   if (!status || status === "error" || status === "copy_failed") {
     return false;
   }
@@ -276,9 +283,17 @@ function shouldTreatLogRowAsProcessed_(status, errorMessage, renameMode, archive
     return false;
   }
 
+  // When archiveRelativePath is explicitly provided:
+  // - If it is non-empty, an archiveFileId is required to be considered processed.
+  // - If it is empty (""), the file was intentionally not copied to archive (rename only).
+  // If archiveRelativePath is undefined (e.g. legacy calls), require archiveFileId.
+  const requiresArchive =
+    archiveRelativePath === undefined || Boolean(collapseWhitespace_(archiveRelativePath));
+
   if (
     renameMode === "rename" &&
     (status === "renamed" || status === "skipped") &&
+    requiresArchive &&
     !collapseWhitespace_(archiveFileId)
   ) {
     return false;

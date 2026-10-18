@@ -18,7 +18,7 @@ The initial setup keeps things small with `Google Apps Script + Drive + Spreadsh
 - Extracts text with Google Drive OCR
 - Has Gemini or OpenAI generate naming candidates
 - Formats to the `YYYY-MM-DD_発行元_書類種別_要点.pdf` pattern (`YYYY-MM-DD_issuer_document-type_summary.pdf`)
-- Copies into a family-shared folder using the `発行元(半角英数字へ正規化)/書類種別` structure (issuer normalized to alphanumerics / document type)
+- Classifies and copies into the family-shared folder structure (e.g. `01_子ども・教育`, `04_公共料金・通信（Utilities）`, `06_身分証明書（ID）/Hide` etc.). Documents that cannot be clearly classified are renamed and kept in the ScanSnap folder without copying
 - Avoids duplicate filenames by appending `_2`, `_3`
 - Records results in a spreadsheet
 - Supports two modes, `review` and `rename`

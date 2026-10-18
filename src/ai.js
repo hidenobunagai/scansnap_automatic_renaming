@@ -42,9 +42,9 @@ function buildAiPrompt_(extractedText, fileMeta, config) {
   const knownIssuers = config.knownIssuers || [];
 
   return [
-    "You rename scanned PDF files for a personal Japanese document archive.",
+    "You rename scanned PDF files for a personal Japanese document archive and classify them into a shared family folder structure.",
     "Return JSON only.",
-    'Schema: {"documentDate":"YYYY-MM-DD or null","issuer":"string","documentType":"string","subject":"string","summary":"string","confidence":0}',
+    'Schema: {"documentDate":"YYYY-MM-DD or null","issuer":"string","documentType":"string","subject":"string","summary":"string","archivePath":"string or null","confidence":0}',
     "Rules:",
     "- Use concise Japanese labels.",
     "- Do not include the .pdf extension.",
@@ -63,7 +63,29 @@ function buildAiPrompt_(extractedText, fileMeta, config) {
     "  If no day is printed but a period is (a weekly schedule 7/7-7/11), use the start of the period, again only when the year is printed.",
     "- subject: 5-25 characters that distinguish this file from similar ones (event, period, target person, item).",
     "  Do not repeat the issuer or documentType in subject. For numbered newsletters include the issue number (e.g. 第14号).",
-    "- confidence: 0 to 1. Lower it when the issuer, date or type had to be guessed or the text is garbled.",
+    '- archivePath: relative folder path in the family shared drive (e.g. "01_子ども・教育/小学校").',
+    "  Available archive categories and common paths:",
+    "  - 01_子ども・教育: 保育園・幼稚園, 小学校, 習い事・通信教育, 誕生・育児記録",
+    "  - 02_住まい・生活: パークホームズLaLa新三郷, 取扱説明書・保証書, 年賀状, 自動車",
+    "  - 03_お金・保険: 給与明細, 税, 保険, 銀行, クレジットカード, ローン, 子ども手当・児童手当, 年金, 証券会社",
+    "  - 04_公共料金・通信（Utilities）: 電気, ガス, 水道, NHK, インターネット, 携帯電話",
+    "  - 05_健康・医療: 健康診断, 予防接種, 健康保険, または家族個人フォルダ",
+    "  - 06_身分証明書（ID）: マイナンバー, 運転免許証, 住民票, 印鑑登録証",
+    "  - 07_仕事・キャリア: キャリア・転職, セイコー社販, ロイヤルカナン",
+    "  - 08_思い出・メディア: 旅行",
+    "  Family member names for personal subfolders (use when a document clearly belongs to a specific person):",
+    "  - Hide: 永井 秀昇 (Hidenobu)",
+    "  - Kumiko: 永井 久美子 (Kumiko / Qoo)",
+    "  - Hinako: 永井 陽菜子 (Hinako)",
+    "  - Gen: 永井 絃太 (Genta / Gen)",
+    "  Examples:",
+    '  - Health checks / medical: "05_健康・医療/Hide", "05_健康・医療/Gen", etc.',
+    '  - ID documents: "06_身分証明書（ID）/Hide", "06_身分証明書（ID）/Kumiko", etc.',
+    '  - Individual tax / salary: "03_お金・保険/税/Hide", "03_お金・保険/給与明細/Hide", etc.',
+    '  - Utilities: "04_公共料金・通信（Utilities）/ガス", "04_公共料金・通信（Utilities）/電気", etc.',
+    '  - School communications: "01_子ども・教育/小学校", etc.',
+    "  IMPORTANT: If the document does NOT clearly fit into any of the above categories, or if you are not confident, return null for archivePath.",
+    "- confidence: 0 to 1. Lower it when the issuer, date, type, or archivePath had to be guessed or the text is garbled.",
     "- If a field is unknown, return an empty string or null.",
     `- Filename style hint: ${config.filenamePatternHint}`,
     `- Original filename: ${fileMeta.name}`,
@@ -124,6 +146,7 @@ function callGeminiForRename_(prompt, config, pdfPart) {
               documentType: { type: "string", enum: DOCUMENT_TYPES_.slice() },
               subject: { type: "string" },
               summary: { type: "string" },
+              archivePath: { type: "string" },
               confidence: { type: "number" },
             },
             required: [
@@ -416,12 +439,23 @@ function normalizeAiSuggestion_(payload, fileMeta, config, extractedText) {
     ? Math.min(normalizeConfidence_(payload.confidence), Math.max(0, config.minConfidence - 0.01))
     : normalizeConfidence_(payload.confidence);
 
+  let archivePath;
+  if (typeof payload.archivePath === "string") {
+    archivePath =
+      typeof normalizeArchiveRelativePath_ === "function"
+        ? normalizeArchiveRelativePath_(payload.archivePath)
+        : String(payload.archivePath).trim();
+  } else if (payload.archivePath === null) {
+    archivePath = null;
+  }
+
   return {
     documentDate: usableDocumentDate || fallbackDate,
     issuer: truncateFileSegment_(issuer, config.maxIssuerLength),
     documentType: truncateFileSegment_(documentType, config.maxDocumentTypeLength),
     subject: subject || fallbackSubject || "scan",
     summary: truncateText_(collapseWhitespace_(payload.summary || payload.subject || ""), 120),
+    archivePath: archivePath,
     confidence: confidence,
     reviewReasons: reviewReasons,
   };

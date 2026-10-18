@@ -235,7 +235,8 @@ function processSinglePdfFile_(fileMeta, config, logSheet, fileState) {
     );
     const shouldRename =
       config.renameMode === "rename" && suggestedName !== fileMeta.name && isConfident;
-    const shouldCopyToArchive = config.renameMode === "rename" && isConfident;
+    const shouldCopyToArchive =
+      config.renameMode === "rename" && isConfident && Boolean(archiveRelativePath);
     const sourceFileName = shouldRename ? suggestedName : fileMeta.name;
     const status = determineProcessingStatus_(
       config.renameMode,

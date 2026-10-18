@@ -4,14 +4,52 @@ const ARCHIVE_DEFAULTS_ = Object.freeze({
 });
 
 function buildArchiveRelativePath_(suggestion, config) {
-  return [
-    normalizeArchiveSegment_(suggestion.issuer, ARCHIVE_DEFAULTS_.issuer, config.maxIssuerLength),
-    normalizeArchiveSegment_(
-      suggestion.documentType,
-      ARCHIVE_DEFAULTS_.documentType,
-      config.maxDocumentTypeLength,
-    ),
-  ].join("/");
+  if (!suggestion) {
+    return "";
+  }
+
+  if (typeof suggestion.archivePath === "string") {
+    return normalizeArchiveRelativePath_(suggestion.archivePath);
+  }
+
+  // When archivePath is explicitly null or empty, no archive copy is desired.
+  if (suggestion.archivePath === null || suggestion.archivePath === "") {
+    return "";
+  }
+
+  // Fallback for legacy calls or tests where archivePath property was not provided
+  if (suggestion.issuer !== undefined && suggestion.documentType !== undefined) {
+    return [
+      normalizeArchiveSegment_(
+        suggestion.issuer,
+        ARCHIVE_DEFAULTS_.issuer,
+        config ? config.maxIssuerLength : 30,
+      ),
+      normalizeArchiveSegment_(
+        suggestion.documentType,
+        ARCHIVE_DEFAULTS_.documentType,
+        config ? config.maxDocumentTypeLength : 30,
+      ),
+    ].join("/");
+  }
+
+  return "";
+}
+
+function normalizeArchiveRelativePath_(path) {
+  if (!path) {
+    return "";
+  }
+
+  var segments = String(path)
+    .replace(/\\/g, "/")
+    .split("/")
+    .map(collapseWhitespace_)
+    .filter(function (segment) {
+      return Boolean(segment) && segment !== "." && segment !== "..";
+    });
+
+  return segments.join("/");
 }
 
 function normalizeArchiveSegment_(value, fallbackValue, maxLength) {

@@ -115,6 +115,54 @@ describe("buildArchiveRelativePath_", () => {
     ).toBe("渋谷区役所/税-通知");
   });
 
+  test("uses family shared archivePath when provided by AI", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js", "src/archive.js"],
+    });
+
+    expect(
+      context.buildArchiveRelativePath_({
+        issuer: "三郷市立桜小学校",
+        documentType: "学級通信",
+        archivePath: "01_子ども・教育/小学校",
+      }),
+    ).toBe("01_子ども・教育/小学校");
+  });
+
+  test("returns empty string when archivePath is null or empty", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js", "src/archive.js"],
+    });
+
+    expect(
+      context.buildArchiveRelativePath_({
+        issuer: "不明なチラシ",
+        documentType: "お知らせ",
+        archivePath: null,
+      }),
+    ).toBe("");
+
+    expect(
+      context.buildArchiveRelativePath_({
+        issuer: "不明なチラシ",
+        documentType: "お知らせ",
+        archivePath: "",
+      }),
+    ).toBe("");
+  });
+
+  test("normalizes slashes and whitespace in archivePath", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js", "src/archive.js"],
+    });
+
+    expect(
+      context.buildArchiveRelativePath_({
+        archivePath: " 05_健康・医療 / Hide / 健康診断 / ",
+      }),
+    ).toBe("05_健康・医療/Hide/健康診断");
+  });
+
   test("falls back when document type and issuer are missing", () => {
     const context = createAppsScriptContext({
       files: ["src/utils.js", "src/archive.js"],
@@ -247,6 +295,34 @@ describe("processSinglePdfFile_", () => {
     expect(result.archiveFileId).toBe("");
     expect(copied).toHaveLength(0);
     expect(renamed).toHaveLength(0);
+    expect(entries).toHaveLength(1);
+  });
+
+  test("renames only without copying to archive when archivePath is empty", () => {
+    const entries = [];
+    const { context, copied, renamed } = createProcessContext({
+      buildArchiveRelativePath_() {
+        return "";
+      },
+    });
+
+    const result = context.processSinglePdfFile_(
+      createFileMeta(),
+      createConfig("rename"),
+      createLogSheet(entries),
+    );
+
+    expect(result.status).toBe("renamed");
+    expect(result.suggestedName).toBe("2026-03-01_市役所_税通知_令和8年度.pdf");
+    expect(result.archiveRelativePath).toBe("");
+    expect(result.archiveFileId).toBe("");
+    expect(result.archiveFinalName).toBe("");
+    expect(copied).toHaveLength(0);
+    expect(renamed).toHaveLength(1);
+    expect(renamed[0]).toEqual({
+      fileId: "file-1",
+      newTitle: "2026-03-01_市役所_税通知_令和8年度.pdf",
+    });
     expect(entries).toHaveLength(1);
   });
 
@@ -492,6 +568,34 @@ describe("shouldTreatLogRowAsProcessed_", () => {
 
     expect(context.shouldTreatLogRowAsProcessed_("renamed", "", "rename", "")).toBe(false);
     expect(context.shouldTreatLogRowAsProcessed_("skipped", "", "rename", "")).toBe(false);
+  });
+
+  test("treats rename-only row as processed when archiveRelativePath is empty", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js", "src/log-sheet.js"],
+    });
+
+    expect(context.shouldTreatLogRowAsProcessed_("renamed", "", "rename", "", "")).toBe(true);
+    expect(context.shouldTreatLogRowAsProcessed_("skipped", "", "rename", "", "")).toBe(true);
+  });
+
+  test("requires archiveFileId when archiveRelativePath is set", () => {
+    const context = createAppsScriptContext({
+      files: ["src/utils.js", "src/log-sheet.js"],
+    });
+
+    expect(
+      context.shouldTreatLogRowAsProcessed_("renamed", "", "rename", "", "01_子ども・教育/小学校"),
+    ).toBe(false);
+    expect(
+      context.shouldTreatLogRowAsProcessed_(
+        "renamed",
+        "",
+        "rename",
+        "file-archive-id",
+        "01_子ども・教育/小学校",
+      ),
+    ).toBe(true);
   });
 });
 
