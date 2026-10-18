@@ -31,6 +31,33 @@ function normalize(payload, config = BASE_CONFIG, text = OCR_TEXT) {
 }
 
 describe("normalizeAiSuggestion_ guardrails", () => {
+  test("rejects an invented year and falls back to the Drive created date", () => {
+    // Real regression: a newsletter that prints only "10月16日発行" was filed as
+    // 2020 because a year was invented for it.
+    const monthDayOnly = "三郷市立桜小学校 3年1組 学級通信 No.23 10月16日発行 ＜今週の予定＞";
+    const s = normalize({ documentDate: "2020-10-16" }, BASE_CONFIG, monthDayOnly);
+
+    expect(s.documentDate).toBe("2026-04-12");
+    expect(s.confidence).toBeLessThan(BASE_CONFIG.minConfidence);
+    expect(s.reviewReasons).toEqual([expect.stringContaining("2020")]);
+  });
+
+  test("keeps a document date whose year is printed", () => {
+    const withYear = "令和8年4月10日 保護者各位 三郷市立桜小学校 4月の行事予定";
+    const s = normalize({ documentDate: "2026-04-10" }, BASE_CONFIG, withYear);
+
+    expect(s.documentDate).toBe("2026-04-10");
+    expect(s.reviewReasons).toEqual([]);
+  });
+
+  test("keeps a document date printed as a Western year", () => {
+    const western = "2026年4月10日 保護者各位 三郷市立桜小学校 4月の行事予定";
+    const s = normalize({ documentDate: "2026-04-10" }, BASE_CONFIG, western);
+
+    expect(s.documentDate).toBe("2026-04-10");
+    expect(s.reviewReasons).toEqual([]);
+  });
+
   test("keeps confidence when every field is grounded", () => {
     const s = normalize({});
     expect(s.confidence).toBe(1);

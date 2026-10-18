@@ -56,9 +56,11 @@ function buildAiPrompt_(extractedText, fileMeta, config) {
       : "",
     `- documentType: pick exactly one of: ${DOCUMENT_TYPES_.join(", ")}.`,
     "  学級通信 = class/grade newsletters; 学校だより = school-wide, library or health newsletters; 検査結果 = health check or fitness test results.",
-    "- documentDate: the issue date printed on the document (発行日/作成日/日付 near the top). Convert Japanese eras (令和7年 = 2025).",
-    "  If no issue date is printed, use the start of the period the document covers (a weekly schedule 7/7-7/11 -> 7/7, a 10月号 -> the 1st),",
-    "  but only when the year is printed too (令和7年度 counts: April-December is 2025, January-March is 2026). Never guess the year; return null instead.",
+    "- documentDate: the date printed on the document (発行日/作成日/日付 near the top), as YYYY-MM-DD.",
+    '  The YEAR must be printed on the page. If only a month and day are printed (e.g. "10月16日発行") and no year appears anywhere on the document, return null for documentDate.',
+    '  Never infer the year from the issue number, the original filename, the scan date, or today\'s date. A document that prints only "10月16日" has no known year.',
+    "  Japanese era years count as printed years: 令和7年 = 2025, 令和8年 = 2026, 平成31年 = 2019.",
+    "  If no day is printed but a period is (a weekly schedule 7/7-7/11), use the start of the period, again only when the year is printed.",
     "- subject: 5-25 characters that distinguish this file from similar ones (event, period, target person, item).",
     "  Do not repeat the issuer or documentType in subject. For numbered newsletters include the issue number (e.g. 第14号).",
     "- confidence: 0 to 1. Lower it when the issuer, date or type had to be guessed or the text is garbled.",
@@ -382,9 +384,19 @@ function normalizeAiSuggestion_(payload, fileMeta, config, extractedText) {
     config.knownIssuers,
   );
   const reviewReasons = [];
+  let usableDocumentDate = documentDate;
 
   if (!documentDate) {
     reviewReasons.push("No issue date found; used Drive created date.");
+  } else if (!isYearGroundedInText_(Number(documentDate.slice(0, 4)), extractedText)) {
+    // The model occasionally invents a year for documents that print only a
+    // month and day. Trusting it mislabels the file by years, so fall back to
+    // the Drive created date and route the file to review instead.
+    const guessedYear = documentDate.slice(0, 4);
+    usableDocumentDate = "";
+    reviewReasons.push(
+      `Issue date year ${guessedYear} is not printed in the document; used Drive created date.`,
+    );
   }
 
   if (!documentType) {
@@ -405,7 +417,7 @@ function normalizeAiSuggestion_(payload, fileMeta, config, extractedText) {
     : normalizeConfidence_(payload.confidence);
 
   return {
-    documentDate: documentDate || fallbackDate,
+    documentDate: usableDocumentDate || fallbackDate,
     issuer: truncateFileSegment_(issuer, config.maxIssuerLength),
     documentType: truncateFileSegment_(documentType, config.maxDocumentTypeLength),
     subject: subject || fallbackSubject || "scan",

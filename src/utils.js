@@ -314,6 +314,64 @@ function formatDate_(dateValue, timezone) {
   );
 }
 
+/**
+ * Japanese era names with the Gregorian year their first year corresponds to.
+ * Used to tell whether a year the AI returned is actually printed on the page.
+ */
+const JAPANESE_ERAS_ = Object.freeze([
+  { name: "令和", firstYear: 2019, lastYear: 2031 },
+  { name: "平成", firstYear: 1989, lastYear: 2019 },
+  { name: "昭和", firstYear: 1926, lastYear: 1989 },
+]);
+
+/** The digit forms a number may be printed in: ASCII and full-width. */
+function digitForms_(number) {
+  const ascii = String(number);
+  const fullWidth = ascii.replace(/[0-9]/g, function (digit) {
+    return String.fromCharCode(digit.charCodeAt(0) + 0xfee0);
+  });
+
+  return ascii === fullWidth ? [ascii] : [ascii, fullWidth];
+}
+
+/**
+ * True when `year` appears in the document text, either as a Western year or as
+ * a Japanese era year (令和7年 = 2025).
+ *
+ * The AI model has been observed inventing a year for documents that print only
+ * a month and day ("10月16日発行"), which silently mislabels the file by years,
+ * so a returned year is only trusted when the page actually carries it.
+ */
+function isYearGroundedInText_(year, text) {
+  const flat = collapseWhitespace_(text).replace(/\s+/g, "");
+
+  if (!flat) {
+    return false;
+  }
+
+  if (
+    digitForms_(year).some(function (form) {
+      return flat.indexOf(form) !== -1;
+    })
+  ) {
+    return true;
+  }
+
+  return JAPANESE_ERAS_.some(function (era) {
+    if (year < era.firstYear || year > era.lastYear) {
+      return false;
+    }
+
+    const eraYear = year - era.firstYear + 1;
+    // The first year of an era is printed as 元年 as often as 1年.
+    const forms = eraYear === 1 ? ["元"].concat(digitForms_(1)) : digitForms_(eraYear);
+
+    return forms.some(function (form) {
+      return flat.indexOf(era.name + form) !== -1;
+    });
+  });
+}
+
 function normalizeIsoDate_(value) {
   const text = collapseWhitespace_(value).replace(/[./]/g, "-");
   const match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
