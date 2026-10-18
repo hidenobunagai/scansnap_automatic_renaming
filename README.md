@@ -8,6 +8,10 @@ The initial setup keeps things small with `Google Apps Script + Drive + Spreadsh
 
 > 🌐 **Interactive Architecture Diagram**: [Open the interactive architecture diagram on GitHub Pages (theme switching, focus, detail view)](https://hidenobunagai.github.io/scansnap_automatic_renaming/)
 
+> 📄 **Privacy policy and terms**: <https://scansnap.misato-labs.com/privacy> ·
+> <https://scansnap.misato-labs.com/terms> (served by
+> [legal-site](https://github.com/hidenobunagai/legal-site))
+
 ## What this project does
 
 - Periodically checks for new PDFs in the target folder

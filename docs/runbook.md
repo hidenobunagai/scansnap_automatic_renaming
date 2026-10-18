@@ -39,7 +39,22 @@
 ## 通知
 
 - `NOTIFICATION_EMAIL` を設定すると、`error` / `copy_failed` が1件でもあれば実行後に `MailApp.sendEmail` で通知。未設定ならログのみ。
-- 初回は要再認証（`script.send_mail` スコープ追加のため）。`clasp push` 後にエディタで `runScanRenameJob` を手動実行して承認。
+- **必ず設定する。** 未設定だと障害メールが一切届かず、2026-09-17〜10-06 の停止が19日間気づかれなかった。
+- スコープを追加したときは要再認証。`clasp push` 後にエディタで `runScanRenameJob` を手動実行して承認する。
+
+## OAuth の承認とポリシーページ
+
+このプロジェクトは標準 GCP プロジェクト `scansnap-automatic-renaming` にリンクしているため、OAuth 同意画面のブランディングを自分で用意する必要がある。
+
+- 公開ステータスが **テスト中** のままだと、リフレッシュトークンが **7日で失効**する（2026-10-13 11:09 UTC に実際に失効し、トリガーが連続失敗した）。**本番環境** に公開するとこの失効は止まる。
+- 承認済みドメインは **最上位のプライベート ドメイン** でなければならない。`github.io` や `vercel.app` は public suffix なので **受理されない**（実際に `無効なドメイン:最上位のプライベート ドメインを指定する必要があります` で弾かれた）。所有している `misato-labs.com` を使う。
+- ポリシーページは `legal-site`（Cloudflare Worker、`~/projects/legal-site`）が配信する。このリポジトリには置かない（二重管理を避けるため）。
+  - ホームページ: https://scansnap.misato-labs.com/
+  - プライバシー ポリシー: https://scansnap.misato-labs.com/privacy
+  - 利用規約: https://scansnap.misato-labs.com/terms
+  - 全アプリの一覧: https://legal.misato-labs.com/
+
+利用者はオーナー1人だけなので、Google の [Personal Use apps の免除](https://support.google.com/cloud/answer/13464323) により **検証（レビュー）の申請は不要**。ロゴを同意画面に出さなければ検証を求められない。
 
 ## セキュリティ
 
