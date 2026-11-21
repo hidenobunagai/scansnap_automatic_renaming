@@ -202,6 +202,84 @@ function callOpenAiForRename_(prompt, config) {
   return parseJsonObjectResponse_(rawText);
 }
 
+const FETCH_MAX_RETRIES_ = 2;
+// Apps Script executions are capped at 6 minutes and one run processes up to
+// MAX_FILES_PER_RUN files, so honouring a Retry-After longer than this would
+// crowd out the remaining files. Fail fast instead and let the next trigger
+// run (15 minutes later) retry when the provider has had time to recover.
+const FETCH_RETRY_AFTER_MAX_MS_ = 30000;
+
+/**
+ * Parse a Retry-After header value into milliseconds.
+ *
+ * The header is either delta-seconds ("120") or an HTTP-date
+ * ("Wed, 21 Oct 2015 07:28:00 GMT"). Returns null when the value is missing
+ * or unparseable, and 0 when an HTTP-date is already in the past.
+ */
+function parseRetryAfterMs_(value, nowMs) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  var text = String(value).trim();
+
+  if (!text) {
+    return null;
+  }
+
+  if (/^\d+$/.test(text)) {
+    return Number(text) * 1000;
+  }
+
+  var dateMs = Date.parse(text);
+
+  if (Number.isNaN(dateMs)) {
+    return null;
+  }
+
+  var now = typeof nowMs === "number" ? nowMs : Date.now();
+  return Math.max(0, dateMs - now);
+}
+
+/** Read Retry-After from a UrlFetchApp response, tolerating header casing. */
+function getRetryAfterMs_(response, nowMs) {
+  if (!response) {
+    return null;
+  }
+
+  if (typeof response.getHeaders === "function") {
+    var headers = response.getHeaders() || {};
+    var keys = Object.keys(headers);
+
+    for (var i = 0; i < keys.length; i++) {
+      if (keys[i].toLowerCase() === "retry-after") {
+        return parseRetryAfterMs_(headers[keys[i]], nowMs);
+      }
+    }
+  }
+
+  if (typeof response.getHeader === "function") {
+    return parseRetryAfterMs_(response.getHeader("Retry-After"), nowMs);
+  }
+
+  return null;
+}
+
+/**
+ * Delay before the next fetch attempt.
+ *
+ * Returns -1 when the provider asked for a wait longer than
+ * FETCH_RETRY_AFTER_MAX_MS_: the caller must fail immediately rather than
+ * sleep. Without a Retry-After header, falls back to exponential backoff.
+ */
+function computeFetchRetryDelayMs_(retryAfterMs, attempt) {
+  if (retryAfterMs !== null && retryAfterMs !== undefined) {
+    return retryAfterMs > FETCH_RETRY_AFTER_MAX_MS_ ? -1 : retryAfterMs;
+  }
+
+  return Math.pow(2, attempt) * 1000 + Math.random() * 500;
+}
+
 function fetchJson_(url, requestOptions, attempt) {
   var currentAttempt = typeof attempt === "number" ? attempt : 0;
   var response;
@@ -216,8 +294,8 @@ function fetchJson_(url, requestOptions, attempt) {
       ),
     );
   } catch (error) {
-    if (currentAttempt < 2) {
-      Utilities.sleep(Math.pow(2, currentAttempt) * 1000 + Math.random() * 500);
+    if (currentAttempt < FETCH_MAX_RETRIES_) {
+      Utilities.sleep(computeFetchRetryDelayMs_(null, currentAttempt));
       return fetchJson_(url, requestOptions, currentAttempt + 1);
     }
     throw error;
@@ -227,8 +305,17 @@ function fetchJson_(url, requestOptions, attempt) {
 
   if (status >= 300) {
     var isRetryable = status === 429 || status === 408 || status >= 500;
-    if (isRetryable && currentAttempt < 2) {
-      Utilities.sleep(Math.pow(2, currentAttempt) * 1000 + Math.random() * 500);
+    if (isRetryable && currentAttempt < FETCH_MAX_RETRIES_) {
+      var retryAfterMs = getRetryAfterMs_(response);
+      var delayMs = computeFetchRetryDelayMs_(retryAfterMs, currentAttempt);
+
+      if (delayMs === -1) {
+        throw new Error(
+          `External API request failed (${status}): Retry-After too long (${Math.round(retryAfterMs / 1000)}s exceeds ${Math.round(FETCH_RETRY_AFTER_MAX_MS_ / 1000)}s limit): ${truncateText_(bodyText, 400)}`,
+        );
+      }
+
+      Utilities.sleep(delayMs);
       return fetchJson_(url, requestOptions, currentAttempt + 1);
     }
     throw new Error(`External API request failed (${status}): ${truncateText_(bodyText, 400)}`);
